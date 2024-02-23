@@ -7,7 +7,8 @@ import time
 import click
 import webbrowser
 import saucenao
-from PIL import Image
+from PIL import Image 
+from colorama import Fore, Style
 
 if sys.platform == "linux":
     sys.path.append(os.path.expanduser("~/pCloudDrive/repos/DanbooruAPI/"))
@@ -16,11 +17,10 @@ elif sys.platform == "win32":
 
 import danbooruapi
 
-__LOG_NAME="./saucenao_log.txt"
-__CONFIG_FILE="./config.json"
-
 sys.stdout = codecs.getwriter('utf8')(sys.stdout.detach())
 sys.stderr = codecs.getwriter('utf8')(sys.stderr.detach())
+
+__CONFIG_FILE="./config.json"
 
 config = {}
 already_searched: list[str] = []
@@ -82,26 +82,25 @@ def load_config():
         config = json.load(open(__CONFIG_FILE))
         
 
-def append_log(line:str):
-    write_log([line], "+a")
+def append_log(log_name, line:str):
+    write_log(log_name, [line], "+a")
 
 
-def write_log(lines:list[str], permission:str):
-    with open(__LOG_NAME, permission) as f:
+def write_log(log_name, lines:list[str], permission:str):
+    with open(log_name, permission) as f:
         f.writelines(lines)
 
 
-def extract_log():
+def extract_log(log_name):
     """Pull records from log file."""
-    if os.path.exists(__LOG_NAME):
-        with open(__LOG_NAME) as f:
+    if os.path.exists(log_name):
+        with open(log_name) as f:
             return f.readlines()
 
 
-def searched_files():
+def searched_files(log_name):
     """Pull list of files that have already been searched before from the log file."""
-    extract_log()
-    for l in extract_log():
+    for l in extract_log(log_name):
         fname = l.split(",")[1]
         already_searched.append(fname)
 
@@ -120,55 +119,14 @@ def skip_file(fname: str):
     return False
 
 
-def process_file(fname: str, threshold:int, db_bitmask: int):
-    """Extract file data and send to saucenao REST API. Log low similarity results to \"saucenao_log.txt\" for later use."""
-    file = os.path.split(fname)[1]
-    API = saucenao.API(db_bitmask, threshold)
-
-    results = API.send_request(fname)
-    
-    if any(results):
-        if int(results['header']['results_returned']) > 0:
-            #one or more results were returned
-            similarity = float(results['results'][0]['header']['similarity'])
-            illust_id = 0
-
-            try:
-                if db_bitmask & int(API.DBMask.index_danbooru) > 0:
-                    illust_id=results['results'][0]['data']['danbooru_id']
-
-                    # 90% practically never has issues, so it should be fine to add the image as a favorite and remove it.
-                    # When you run into anything below that though, it gets a bit troublesome, so instead of fretting over it,
-                    # we can log the result and then check them later.
-                    if similarity > 90:
-                        if illust_id > 0:
-                            danbooruapi.API.add_favorite(illust_id)
-                            print(f"Match found ({similarity}%): {file} favorited to {illust_id}, file removed.")
-                            os.remove(fname)
-                    else:
-                        print(f"{file} didn't meet similarity quota: {similarity}%, added to log.")
-                        append_log(f"{similarity},{fname},{illust_id},u\n")
-            except Exception as e:
-                print(e)
-        else:
-            print(f"No results found for {file}")
-            # Even if nothing is found, we still need to update the log file to ensure the file won't be checked again
-            append_log(f"0,{fname},0,u\n")
-
-        if int(results['header']['long_remaining'])<1: #could potentially be negative
-            print("Reached daily search limit, unable to process more request at this time.")
-            sys.exit()
-        if int(results['header']['short_remaining'])<1:
-            print('Out of searches for this 30 second period. Sleeping for 25 seconds...')
-            time.sleep(25)
-
-
 @click.command()
 @click.option("-t", "--threshold", type=click.FLOAT, default=80, show_default=True, 
               help="Compare files above minimum similarity threshold.")
 @click.option("-f", "--force", is_flag=True, show_default=True, default=False, 
               help="Force all files to be compared, even those that have been previously checked.")
-def check_log(threshold, force):
+@click.option("-ln","--log_name", type=click.Path(exists=True, dir_okay=False), default="./saucenao_log.txt", show_default=True,
+              help="Name of the log file to be checked.")
+def check_log(threshold, force, log_name):
     """
     Allow manual review of files added to the log file, determined by the minimum threshold.
     Opens a browser window with two tabs, one for Danbooru the other for the file stored locally.
@@ -185,7 +143,7 @@ def check_log(threshold, force):
     changes = False
     
     # Need to split these two up, adding a index to the latter to be able to make changes to the log file.
-    log_files = extract_log()
+    log_files = extract_log(log_name)
     file_list = [ (str(x) + "," + log_files[x]).split(",") for x in range(0, len(log_files)) ]
 
     # Do this in reverse, this way items can be removed without risk of messing up sequence
@@ -237,31 +195,88 @@ def check_log(threshold, force):
 
     # Ensure that we update the log file with any changes made.
     if changes:
-        write_log(log_files, "+w")
+        write_log(log_name, log_files, "+w")
     
     print("Done.")
 
 
+def process_file(fname:str, threshold:int, db_bitmask:int, log_only:bool, log_name:str):
+    """Extract file data and send to saucenao REST API. Log low similarity results to \"saucenao_log.txt\" for later use."""
+    file = os.path.split(fname)[1]
+    API = saucenao.API(db_bitmask, threshold)
+
+    results = API.send_request(fname)
+    
+    if any(results):
+        if int(results['header']['results_returned']) > 0:
+            #one or more results were returned
+            similarity = float(results['results'][0]['header']['similarity'])
+            illust_id = 0
+
+            try:
+                if db_bitmask & int(API.DBMask.index_danbooru) > 0:
+                    illust_id=results['results'][0]['data']['danbooru_id']
+                    
+                    if log_only:
+                        append_log(log_name, f"{similarity},{fname},{illust_id},u\n")
+                        print(f"{file} : {similarity}% - added to log.")
+
+                    # 90% practically never has issues, so it should be fine to add the image as a favorite and remove it.
+                    # When you run into anything below that though, it gets a bit troublesome, so instead of fretting over it,
+                    # we can log the result and then check them later.
+                    if similarity > 90:
+                        if illust_id > 0:
+                            try:
+                                danbooruapi.API.add_favorite(illust_id)
+                                print(f"Match found ({similarity}%): {file} favorited to {illust_id}, file removed.")
+                                os.remove(fname)
+                            except Exception as e:
+                                # If Danbooru is refusing connections end this process. Otherwise it'll just waste time.
+                                append_log(log_name, f"{similarity},{fname},{illust_id},u\n")
+                                print(f"{Fore.RED}Failed to connect to Danbooru's API: {e}{Style.RESET_ALL}")
+                                print(f"{Fore.RED}{file} added to log but will need to be manually reviewed.{Style.RESET_ALL}")
+                                print(f"{Fore.RED}Check that you have your Danbooru username/API Key as env variables. If using a VPN this could be causing 403 errors.{Style.RESET_ALL}")
+                                exit(1)
+                    else:
+                        print(f"{file} didn't meet similarity quota: {similarity}%, added to log.")
+                        append_log(log_name, f"{similarity},{fname},{illust_id},u\n")
+            except Exception as e:
+                print(e)
+        else:
+            print(f"No results found for {file}")
+            # Even if nothing is found, we still need to update the log file to ensure the file won't be checked again
+            append_log(log_name, f"0,{fname},0,u\n")
+
+        if int(results['header']['long_remaining'])<1: #could potentially be negative
+            print("Reached daily search limit, unable to process more request at this time.")
+            sys.exit()
+        if int(results['header']['short_remaining'])<1:
+            print('Out of searches for this 30 second period. Sleeping for 25 seconds...')
+            time.sleep(25)
+
+
 @click.command()
 @click.argument("-d", "--directory", 
-                type=click.Path(exists=True, file_okay=False), 
-                cls=Mutex, not_required_if='file', 
+                type=click.Path(exists=True, file_okay=False), cls=Mutex, not_required_if='file', 
                 help="Directory to pull images from.")
 @click.argument("-f", "--file", 
-                type=click.Path(exists=True, dir_okay=False), 
-                cls=Mutex, not_required_if='directory', 
+                type=click.Path(exists=True, dir_okay=False), cls=Mutex, not_required_if='directory', 
                 help="Image to check.")
 @click.option("-r", "--recursive", 
               is_flag=True, show_default=True, default=False, 
               help="Pull images from all sub-directories within specified directory.")
 @click.option("-t", "--threshold", type=int, default=0, show_default=True, 
-              help="Compare files above minimum similarity threshold.")
-def add_to_danbooru(file:str, directory:str, recursive:bool, threshold:int):
+              help="Only allow files above minimum similarity threshold.")
+@click.option("-l", "--log_only", is_flag=True, default=False, show_default=True, 
+              help="Do not connect to Danbooru, just add files to the log file (good for if Danbooru goes down).")
+@click.option("-ln","--log_name", type=click.Path(dir_okay=False, writable=True), default="./saucenao_log.txt", show_default=True,
+              help="Name of the log file to be written to.")
+def add_to_danbooru(file:str, directory:str, recursive:bool, threshold:int, log_only:bool, log_name):
     """
     Connects to the Saucenao web API to look at specified file(s) and determine if they match. If they match, will favorite the image
     on Danbooru then remove the file from the local machine.
     """
-    searched_files()
+    searched_files(log_name)
     # Generate appropriate bitmask
     db_bitmask = int(saucenao.API.DBMask.index_danbooru)
     all_files: list[str] = []
@@ -271,9 +286,7 @@ def add_to_danbooru(file:str, directory:str, recursive:bool, threshold:int):
         all_files.append(file)
     else:
         if recursive: 
-            for dirpath, _, files in os.walk(directory):
-                for f in files:
-                    all_files.append(os.path.join(dirpath, f))
+            all_files = [os.path.join(dirpath, f) for dirpath, _, files in os.walk(directory) for f in files]
         else:
             all_files = os.listdir(directory)
     
@@ -281,7 +294,7 @@ def add_to_danbooru(file:str, directory:str, recursive:bool, threshold:int):
         # Just to make sure we don't waste precious searches
         if skip_file(fname):
             continue
-        process_file(fname, threshold, db_bitmask)
+        process_file(fname, threshold, db_bitmask, log_only, log_name)
 
 
 commands.add_command(check_log)

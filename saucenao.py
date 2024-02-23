@@ -10,30 +10,18 @@ from enum import Enum, IntFlag, auto
 
 
 class API(object):
-    def __init__(self, dbmask:int, minsim:int = 90, output_type:int = 2):
-        self.dbmask = dbmask
-        self.minsim = minsim
-        self.output_type = output_type
-
-    # Needs to be set as an environmental variable, set this in your .bashrc, .zshrc, or whatever shell you use on Linux,
-    # alternatively for Windows/MacOSX look up how to add environmental variables
-    __API_KEY = os.getenv("SAUCENAO_APIKEY")
-    __THUMBSIZE = (250,250)
-    __ALLOWED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".gif", ".bmp"}
-    # Why the hell does python not allow you to return an iterable from a property? 
-    # This is the one good occasion for a property and I can't even use it.
-    def get_allowed_extensions():
-        return API.__ALLOWED_EXTENSIONS
-
-
+    """Library that interacts with Saucenao's REST API tools."""
     class Output_Type(Enum):
+        """Response output type expected from Saucenao.
+        
+        NOTE: As of this time XML is not implemented and should not be used."""
         html = 0
         xml = 1 # NOT IMPLEMENTED!!!
         json = 2
         
 
     class DBMask(IntFlag):
-        """Flags that correspond to the appropriate website. To be used for including/excluding in search."""
+        """Flags that correspond to the appropriate website. To be used for including/excluding results in search."""
         index_hmags = auto()
         index_reserved = auto()
         index_hcg = auto()
@@ -73,6 +61,23 @@ class API(object):
         index_mangadex = auto()
 
 
+    def __init__(self, dbmask:int, minsim:int = 90, output_type:Output_Type = Output_Type.json):
+        self.dbmask = dbmask
+        self.minsim = minsim
+        self.output_type = output_type
+
+
+    # Needs to be set as an environmental variable, set this in your .bashrc, .zshrc, or whatever shell you use on Linux,
+    # alternatively for Windows/MacOSX look up how to add environmental variables
+    __API_KEY = os.getenv("SAUCENAO_APIKEY")
+    __THUMBSIZE = (250,250)
+    __ALLOWED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".gif", ".bmp"}
+    # Why the hell does python not allow you to return an iterable from a property? 
+    # This is the one good occasion for a property and I can't even use it.
+    def get_allowed_extensions():
+        return API.__ALLOWED_EXTENSIONS
+
+
     def __get_image_data(fname):
         """Extracts the image's bytes and adds it as a parameter to be used in the request."""
         image = Image.open(fname)
@@ -90,7 +95,7 @@ class API(object):
     def __set_params(self, params:dict[str:any]) -> dict[str:any]:
         """Sets required parameters that were initialized in constructor."""
         params["minsim"] = self.minsim
-        params["output_type"] = self.output_type
+        params["output_type"] = self.output_type.value
         params["dbmask"] = self.dbmask
         params["api_key"] = self.__API_KEY
         return params
