@@ -73,8 +73,8 @@ def __process_file(file_path:str, fname:str, threshold:int, db_bitmask:int, log_
         log_only (bool): Only add files to log file, does not add to Danbooru.
         log_name (str): Name of the log file.
     """
-    API = saucenao.API(db_bitmask, threshold)
-    results = API.send_request(file_path)
+    sauAPI = saucenao.API(db_bitmask, threshold)
+    results = sauAPI.send_request(file_path)
     
     if any(results):
         if int(results['header']['results_returned']) > 0:
@@ -83,7 +83,7 @@ def __process_file(file_path:str, fname:str, threshold:int, db_bitmask:int, log_
             illust_id = 0
 
             try:
-                if db_bitmask & int(API.DBMask.index_danbooru) > 0:
+                if db_bitmask & int(sauAPI.DBMask.index_danbooru) > 0:
                     illust_id=results['results'][0]['data']['danbooru_id']
                     
                     if log_only:
