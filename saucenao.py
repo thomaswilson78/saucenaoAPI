@@ -111,48 +111,17 @@ class API(object):
         file = API.__get_image_data(fname)
         params = self.__set_params(params)
 
-        while True:
-            r = requests.post("http://saucenao.com/search.php", params=params, files=file)
-            if r.status_code != 200:
-                if r.status_code == 403:
-                    print("Incorrect or Invalid API Key!")
-                    sys.exit(1)
-                elif r.status_code == 429:
-                    print("Reached search limit, unable to process more request at this time.")
-                    sys.exit()
-                else:
-                    #generally non 200 statuses are due to either overloaded servers or the user is out of searches
-                    print("Status Code: "+str(r.status_code))
-                    time.sleep(10)
-            else:
+        r = requests.post("http://saucenao.com/search.php", params=params, files=file)
+
+        match r.status_code:
+            case 403:
+                raise Exception("Incorrect or Invalid API Key!")
+            case 429:
+                raise Exception("Out of daily searches. Try again later.")
+            case 200:
                 results = json.JSONDecoder(object_pairs_hook=OrderedDict).decode(r.text)
-                if int(results["header"]["user_id"])>0:
-                    #api responded
-                    print("Remaining Searches 30s|24h: "+str(results["header"]["short_remaining"])+"|"+str(results["header"]["long_remaining"]))
-                    if int(results["header"]["status"])==0:
-                        #search succeeded for all indexes, results usable
-                        break
-                    else:
-                        if int(results["header"]["status"])>0:
-                            #One or more indexes are having an issue.
-                            #This search is considered partially successful, even if all indexes failed, so is still counted against your limit.
-                            #The error may be transient, but because we don"t want to waste searches, allow time for recovery.
-                            print("API Error. Retrying in 600 seconds...")
-                            time.sleep(600)
-                            continue
-                        else:
-                            #Problem with search as submitted, bad image, or impossible request.
-                            #Issue is unclear, so don"t flood requests.
-                            print("Bad image or other request error. Skipping.")
-                            results = []
-                            time.sleep(10)
-                            break
-                else:
-                    #General issue, api did not respond. Normal site took over for this error state.
-                    #Issue is unclear, so don"t flood requests.
-                    print("Bad image or API failure. Skipping.")
-                    results = []
-                    time.sleep(10)
-                    break
+            # Generally non-200 statuses are due to some other issue like overloaded servers
+            case _:
+                raise Exception(f"Status Code: {r.status_code}\nMessage: {r.reason}")
 
         return results
