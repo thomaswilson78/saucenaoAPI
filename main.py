@@ -57,24 +57,23 @@ def check_log(threshold:float, force:bool, log_name:str):
 @click.argument("-d", "--directory", 
                 type=click.Path(exists=True, file_okay=False), cls=Mutex, not_required_if='file', 
                 help="Directory to pull images from.")
-@click.argument("-f", "--file", 
-                type=click.Path(exists=True, dir_okay=False), cls=Mutex, not_required_if='directory', 
-                help="Image to check.")
 @click.option("-r", "--recursive", 
               is_flag=True, show_default=True, default=False, 
               help="Pull images from all sub-directories within specified directory.")
 @click.option("-t", "--threshold", type=int, default=0, show_default=True, 
               help="Only allow files above minimum similarity threshold.")
-@click.option("-l", "--log_only", is_flag=True, default=False, show_default=True, 
-              help="Do not connect to Danbooru, just add files to the log file (good for if Danbooru goes down).")
+@click.option("-s", "--schedule", is_flag=True, default=False, show_default=True, 
+              help="Schedules a crontab task to run.")
 @click.option("-ln","--log_name", type=click.Path(dir_okay=False, writable=True), default="./saucenao_log.txt", show_default=True,
               help="Name of the log file to be written to.")
-def add_to_danbooru(file:str, directory:str, recursive:bool, threshold:int, log_only:bool, log_name):
+@click.option("-h","--hash_only", is_flag=True, default=False, show_default=True,
+              help="Only check the MD5 values, do not search on Danbooru")
+def add_to_danbooru(directory:str, recursive:bool, threshold:int, schedule:bool, hash_only:bool, log_name):
     """
     Connects to the Saucenao web API to look at specified file(s) and determine if they match. If they match, will favorite the image
     on Danbooru then remove the file from the local machine.
     """
-    addtodanbooru.add_to_danbooru(file, directory, recursive, threshold, log_only, log_name)
+    addtodanbooru.add_to_danbooru(directory, recursive, threshold, schedule, hash_only, log_name)
 
 
 commands.add_command(check_log)
