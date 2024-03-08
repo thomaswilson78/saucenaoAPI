@@ -18,6 +18,39 @@ import danbooru
 danAPI = danbooru.API()
 
 
+# For people that generate AI art and such
+blacklisted_terms = [
+    "AI Art",
+    "8co28",
+    "AIart_Fring",
+    "HoDaRaKe",
+    "Shoppy_0909",
+    "amoria_ffxiv",
+    "eatsleep1111",
+    "iolite_aoto",
+    "lilydisease",
+    "pon_pon_pon_ai",
+    "sagawa_gawa",
+    "sayaka_aiart",
+    "tocotoco365",
+    "truckkunart"
+]
+
+
+def skip_file(fname:str, already_searched:set[str]):
+    """Skip non-files, files that have already been searched before, not of a valid extension, or has blacklisted terms (mainly for AI art)."""
+    if not os.path.isfile(fname):
+        return True
+    elif fname in already_searched:
+        return True
+    elif not os.path.splitext(fname)[1] in saucenao.API.get_allowed_extensions():
+        return True
+    elif any(bl in fname for bl in blacklisted_terms):
+        return True
+    
+    return False
+
+
 
 def __add_favorite(file_path:str, fname:str, illust_id:int, similarity:int = None):
     danAPI.add_favorite(illust_id)
@@ -30,24 +63,21 @@ def __add_favorite(file_path:str, fname:str, illust_id:int, similarity:int = Non
 
 def __check_danbooru(file_path:str, fname:str) -> bool:
     """Checks file for source/MD5 match."""
-    # Naming schema when saving via webimageextractor.py. While that app automatically checks Danbooru for the tweet ID, 
-    # it's possible the image was too new and wasn't uploaded yet.
-    if fname.find(" - "):
-        for f in fname.split(" - "):
-            if str.isnumeric(f):
-                json_data = danAPI.get_posts({"tags": f"source:*twitter.com*{f}"})
-                if any(json_data):
-                    for item in json_data:
-                        __add_favorite(file_path, fname, item["id"])
-                    return True
 
     params = {}
     with open(file_path, "rb") as file:
-        img_md5 = hashlib.md5(file.read()).hexdigest()
-        # NOTE: DON'T USE THE MD5 TAG. This is a very iffy tag, it only supplies 1 result if 
-        # found and if nothing is found it gives a 404 error. Safer to use the "tags" param instead.
-        # params = {"md5": f"{img_md5}"}
-        params = {"tags": f"md5:{img_md5}"}
+        # NOTE: {"md5": f"{img_md5}"} <- DON'T USE. This is a very iffy tag, it only supplies 1 result if found and 
+        # if nothing is found it gives a 404 error. "tags" param is safer as if it finds nothing it returns empty.
+        tags = f"md5:{hashlib.md5(file.read()).hexdigest()}"
+
+        # Naming schema when saving via imgextract.py. While that app automatically checks Danbooru for the tweet ID, 
+        # it's possible the image was too new and wasn't uploaded yet.
+        if fname.find(" - "):
+            for f in fname.split(" - "):
+                if str.isnumeric(f):
+                    tags += f" or source:*twitter.com*{f}"
+                    break
+        params = {"tags": f"{tags}"}
     
     json_data = danAPI.get_posts(params)
     if any(json_data):
@@ -59,7 +89,7 @@ def __check_danbooru(file_path:str, fname:str) -> bool:
 
 
 def __process_file(file_path:str, fname:str, threshold:int, db_bitmask:int, log_name:str) -> bool:
-    """summary: Extract file data and send to saucenao REST API. Log low similarity results to \"saucenao_log.txt\" for later use.
+    """summary: Extract file data and send to saucenao REST API. Log low similarity results to {log_name} for later use.
 
     Args:
         file_path (str): Full path to locate the file name.
@@ -90,10 +120,10 @@ def __process_file(file_path:str, fname:str, threshold:int, db_bitmask:int, log_
                         except Exception as e:
                             # If Danbooru is refusing connections end this process. Otherwise it'll just waste time.
                             saucenaolog.append_log(log_name, f"{similarity},{file_path},{illust_id},u\n")
-                            print(f"{Fore.RED}Failed to connect to Danbooru's API: {e}{Style.RESET_ALL}")
-                            print(f"{Fore.RED}{fname} added to log but will need to be manually reviewed.{Style.RESET_ALL}")
-                            print(f"{Fore.RED}Check that you have your Danbooru username/API Key as env variables. If using a VPN this could be causing 403 errors.{Style.RESET_ALL}")
-                            return False
+                            raise Exception(f"""Failed to connect to Danbooru's API: {e}\n
+                                            {fname} added to log but will need to be manually reviewed.\n
+                                            Check that you have your Danbooru username/API Key as env variables.
+                                            If using a VPN this could be causing 403 errors.""")
                 else:
                     print(f"{fname} didn't meet similarity quota: {similarity}%, added to log.")
                     saucenaolog.append_log(log_name, f"{similarity},{file_path},{illust_id},u\n")
@@ -105,14 +135,14 @@ def __process_file(file_path:str, fname:str, threshold:int, db_bitmask:int, log_
         if int(results['header']['long_remaining'])<1: #could potentially be negative
             print("Reached daily search limit, unable to process more request at this time.")
             # Hit the daily limit, can no longer proceed
-            return False
+            return True
         if int(results['header']['short_remaining'])<1:
             print('Out of searches for this 30 second period. Sleeping for 25 seconds...')
             time.sleep(25)
     else:
         print(f"No results found for {fname}")
 
-    return True
+    return False
 
 def add_to_danbooru(directory:str, recursive:bool, threshold:int, schedule:bool, hash_only:bool, log_name):
     already_searched = saucenaolog.searched_files(log_name) 
@@ -126,36 +156,31 @@ def add_to_danbooru(directory:str, recursive:bool, threshold:int, schedule:bool,
     else:
         all_files = os.listdir(directory)
     
-    finished_all = False
-    error_msg:str = None
+    daily_limit = False
     try:
         for file in all_files:
-            # Just to make sure we don't waste precious searches
-            if saucenaolog.skip_file(file, already_searched):
+            if skip_file(file, already_searched):
                 continue
 
             fname = os.path.split(file)[1]
-            # Before we send to saucenao, just double check the file doesn't already contain the source or MD5 value.
+            # Before we send to saucenao, double check that we can't get the image from the source or MD5 value.
+            # Since we're limited to 100 daily searches, they're rather precious so if we can save even one of them
+            # it would be a huge help.
             db_found = __check_danbooru(file, fname)
             if not db_found and not hash_only:
-                finished_all = __process_file(file, fname, threshold, db_bitmask, log_name)
-                # If we've hit the daily limit, quit here.
-                if not finished_all:
+                daily_limit = __process_file(file, fname, threshold, db_bitmask, log_name)
+                if daily_limit:
                     break
     
-        # Once we've finished, set a new time for the next crontab job as the ending time for this job so that
-        # There will be ample time to run a new job the next time the task is ran.
-        if schedule:
-            updateschedule.update_crontab_job(directory)
     except Exception as e:
         error_msg = (str(e))
-        print(e)
-        
-    # Send email if all files finished or error was raised.
-    dt = datetime.datetime.now()
-    msg = str(dt.date()) + " " + str(dt.time()) + "\n" + directory
-    path = os.path.expanduser("~/Desktop/")
-    if not error_msg is None:
-        saucenaolog.append_log(path + 'saucenao_error.log', msg + '\n' + error_msg)
-    elif finished_all:
-        saucenaolog.append_log(path + 'saucenao_finished.log', msg)
+        dt = datetime.datetime.now()
+        strdt = str(dt.date()) + "_" + str(dt.hour) + str(dt.minute)
+        msg = strdt + "\n" + directory + '\n' + error_msg
+        path = os.path.expanduser("~/Desktop/")
+        saucenaolog.write_log(path + f"saucenao_error_{strdt}.log", msg, "w")
+        print(f"{Fore.RED}Error: {error_msg}{Style.RESET_ALL}")
+
+    # Once finished, set the crontab job to the ending time, this way there will be ample time to refresh the usages.
+    if schedule:
+        updateschedule.update_crontab_job(directory)

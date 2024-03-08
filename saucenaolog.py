@@ -1,6 +1,5 @@
 import os
 import sys
-import saucenao
 import webbrowser
 import saucenaoconfig
 from colorama import Fore, Style
@@ -13,25 +12,7 @@ elif sys.platform == "win32":
 import danbooru
 
 config = saucenaoconfig.config()
-danAPI = danbooru.API()
 
-# For people that generate AI art and such
-blacklisted_terms = [
-    "AI Art",
-    "8co28",
-    "AIart_Fring",
-    "HoDaRaKe",
-    "Shoppy_0909",
-    "amoria_ffxiv",
-    "eatsleep1111",
-    "iolite_aoto",
-    "lilydisease",
-    "pon_pon_pon_ai",
-    "sagawa_gawa",
-    "sayaka_aiart",
-    "tocotoco365",
-    "truckkunart"
-]
 
 def append_log(log_name, line:str):
     write_log(log_name, [line], "+a")
@@ -60,20 +41,6 @@ def searched_files(log_name) -> set[str]:
     return already_searched
 
 
-def skip_file(fname:str, already_searched:set[str]):
-    """Skip files that have already been searched before, not of a valid extension, or has blacklisted terms (mainly for AI art)."""
-    if not os.path.isfile(fname):
-        return True
-    elif fname in already_searched:
-        return True
-    elif not os.path.splitext(fname)[1] in saucenao.API.get_allowed_extensions():
-        return True
-    elif any(bl in fname for bl in blacklisted_terms):
-        return True
-    
-    return False
-
-
 def check_log(threshold:float, force:bool, log_name:str):
     # NOTE: The main importance of the log file is to ensure that we skip already searched files when running add_to_danbooru.
     # This is just a glorfied double check to make sure anything that didn't meet the threshold the first time wasn't a miss. 
@@ -91,6 +58,7 @@ def check_log(threshold:float, force:bool, log_name:str):
 
     # Do this in reverse, this way items can be removed without risk of messing up sequence
     try:
+        danAPI = danbooru.API()
         for i, sim, fname, ill_id, status in reversed(file_list):
             if exit_loop:
                 break

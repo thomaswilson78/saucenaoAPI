@@ -9,7 +9,6 @@ class config:
         self.load_config()
 
 
-
     def load_config(self):
         # If there's no default config file, create it.
         if not os.path.exists(self.__CONFIG_FILE):
