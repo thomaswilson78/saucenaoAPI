@@ -13,7 +13,9 @@ class config:
         # If there's no default config file, create it.
         if not os.path.exists(self.__CONFIG_FILE):
             self.settings = {
-                "DEFAULT_BROWSER": "firefox"
+                "DEFAULT_BROWSER": "firefox",
+                "LOG_NAME": "./saucenao_log.txt",
+                "DATABASE_NAME": "./saucenaoDB.db"
             }
             json.dump(self.settings, open(self.__CONFIG_FILE, "w"))
         else:

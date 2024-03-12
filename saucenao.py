@@ -3,10 +3,12 @@ import sys
 import io
 import json
 import requests
-import time
 from PIL import Image
 from collections import OrderedDict
 from enum import Enum, IntFlag, auto
+
+
+IS_DEBUG = hasattr(sys, 'gettrace') and sys.gettrace() is not None 
 
 
 class API(object):
@@ -99,7 +101,70 @@ class API(object):
         params["dbmask"] = self.dbmask
         params["api_key"] = self.__API_KEY
         return params
+    
+    
+    def __fake_response(self): 
+        """For debugging purposes, send a simulated response to prevent usage of daily searches."""
 
+        return OrderedDict([
+            ('header', OrderedDict([
+                ('user_id', '117582'), 
+                ('account_type', '1'), 
+                ('short_limit', '4'), 
+                ('long_limit', '100'), 
+                ('long_remaining', 91), 
+                ('short_remaining', 3), 
+                ('status', 0), 
+                ('results_requested', '8'), 
+                ('index', OrderedDict([
+                    ('9', OrderedDict([
+                        ('status', 0), 
+                        ('parent_id', 9), 
+                        ('id', 9), 
+                        ('results', 8)
+                    ]))
+                ])), 
+                ('search_depth', '128'), 
+                ('minimum_similarity', 53.72), 
+                ('query_image_display', '/userdata/0ObThg3E3.png.png'), 
+                ('query_image', '0ObThg3E3.png'), 
+                ('results_returned', 8)
+            ])), 
+            ('results', [[OrderedDict([
+                ('header', OrderedDict([
+                    ('similarity', '96.22'), 
+                    ('thumbnail', 'https://img3.saucenao.com/booru/f/6/f603559b53625c48d47e5cba07cb380a_0.jpg?auth=AtyVEePg7VbVaI_Rx0uX9A&exp=1710874800'), 
+                    ('index_id', 9), 
+                    ('index_name', 'Index #9: Danbooru - f603559b53625c48d47e5cba07cb380a_0.jpg'), 
+                    ('dupes', 0), 
+                    ('hidden', 0)
+                ])), 
+                ('data', OrderedDict([
+                    ('ext_urls', ['https://danbooru.donmai.us/post/show/4701825']), 
+                    ('danbooru_id', 4701825), 
+                    ('creator', 'kimblee'), 
+                    ('material', 'granblue fantasy'), 
+                    ('characters', 'andira (granblue fantasy), andira (summer) (granblue fantasy)'), 
+                    ('source', 'https://i.pximg.net/img-original/img/2021/08/14/00/00/13/91953701')
+                ])),
+                ('header', OrderedDict([
+                    ('similarity', '54.84'), 
+                    ('thumbnail', 'https://img3.saucenao.com/booru/b/5/b584e1c1f46338cd06be1c238c80955e_0.jpg?auth=ItKA4sEO2vFBWCQkZKSNIw&exp=1710874800'), 
+                    ('index_id', 9), 
+                    ('index_name', 'Index #9: Danbooru - b584e1c1f46338cd06be1c238c80955e_0.jpg'), 
+                    ('dupes', 0), 
+                    ('hidden', 0)
+                ])), 
+                ('data', OrderedDict([
+                    ('ext_urls', ['https://danbooru.donmai.us/post/show/4701825']), 
+                    ('danbooru_id', 2710323), 
+                    ('creator', 'kanachirou'), 
+                    ('material', 'kantai collection'), 
+                    ('characters', 'prinz eugen (kancolle)'), 
+                    ('source', 'https://i.pximg.net/img-original/img/2017/05/02/11/40/34/62691361')
+                ]))
+            ])]])
+        ])
 
     def send_request(self, fname: str, params: dict[str:any] = {}):
         """Sends request to Saucenao's API and returns response.
@@ -111,17 +176,37 @@ class API(object):
         file = API.__get_image_data(fname)
         params = self.__set_params(params)
 
-        r = requests.post("http://saucenao.com/search.php", params=params, files=file)
+        if IS_DEBUG:
+            results = self.__fake_response()
+        else:
+            r = requests.post("http://saucenao.com/search.php", params=params, files=file)
 
-        match r.status_code:
-            case 403:
-                raise Exception("Incorrect or Invalid API Key!")
-            case 429:
-                raise Exception("Out of daily searches. Try again later.")
-            case 200:
-                results = json.JSONDecoder(object_pairs_hook=OrderedDict).decode(r.text)
-            # Generally non-200 statuses are due to some other issue like overloaded servers
-            case _:
-                raise Exception(f"Status Code: {r.status_code}\nMessage: {r.reason}")
+            match r.status_code:
+                case 403:
+                    raise Exception("Incorrect or Invalid API Key!")
+                case 429:
+                    raise Exception("Out of daily searches. Try again later.")
+                case 200:
+                    results = json.JSONDecoder(object_pairs_hook=OrderedDict).decode(r.text)
+                # Generally non-200 statuses are due to some other issue like overloaded servers
+                case _:
+                    raise Exception(f"Status Code: {r.status_code}\nMessage: {r.reason}")
 
         return results
+
+
+class Response:
+    class Header:
+        def __init__(self, resultsHeader):
+            self.similarity:float = resultsHeader["similarity"]
+            self.short_remaining:int = resultsHeader["short_remaining"]
+            self.long_remaining:int = resultsHeader["long_remaining"]
+    class Data:
+        def __init__(self, db_bitmask, resultsData):
+            if db_bitmask & API.DBMask.index_danbooru:
+                self.site_flag = int(API.DBMask.index_danbooru)
+                self.site_id = resultsData["danbooru_id"]
+        
+    def __init__(self, db_bitmask, header, data) -> None:
+        self.header = self.Header(header)
+        self.data = self.Data(db_bitmask, data)

@@ -2,3 +2,5 @@ config.json
 saucenao_log.txt
 __pycache__/*
 .vscode/*
+saucenaoDB.db
+*.db-journal
