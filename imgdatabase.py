@@ -1,33 +1,32 @@
-import os
+import sys
 import saucenaoconfig
-import logwriter
 import sqlite3
 from sqlite3 import Error
-from colorama import Fore, Style
+
+IS_DEBUG = hasattr(sys, 'gettrace') and sys.gettrace() is not None 
 
 config = saucenaoconfig.config()
 
 
 class database():
     def __init__(self):
-        self.db_name = config.settings["DATABASE_NAME"]
+        self.db_instance = config.settings["IMG_DATABASE"] if not IS_DEBUG else config.settings["TEST_IMG_DATABASE"]
         self.init_setup()
 
 
     def create_connection(self):
-        return sqlite3.connect(self.db_name)
+        return sqlite3.connect(self.db_instance)
 
 
     def execute_nonquery(self, query, params = ()) -> bool:
-        with sqlite3.connect(self.db_name) as conn:
+        with sqlite3.connect(self.db_instance) as conn:
             try:
                 conn = self.create_connection()
                 cursor = conn.cursor()
                 cursor.execute("PRAGMA foreign_keys=ON;")
                 cursor.execute(query, params)
             except Error as e:
-                print(f"{Fore.RED}{e}{Style.RESET_ALL}")
-                return False
+                raise Exception(f"Error:{e}\nQuery:{query}\nParmas:{params}")
             finally:
                 if conn:
                     conn.close()
@@ -44,8 +43,7 @@ class database():
             cursor.execute(query, params)
             results = cursor.fetchall()
         except Error as e:
-            print(f"{Fore.RED}{e}{Style.RESET_ALL}")
-            results = None
+            raise Exception(f"Error:{e}\nQuery:{query}\nParmas:{params}")
         finally:
             if conn:
                 conn.close()
@@ -63,10 +61,10 @@ class database():
             conn.commit()
             result = cursor.lastrowid
         except Error as e:
-            print(f"{Fore.RED}{e}{Style.RESET_ALL}")
-            result = None
+            raise Exception(f"Error:{e}\nQuery:{query}\nParmas:{params}")
         finally:
             if conn:
+                conn.rollback()
                 conn.close()
                 
         return result
@@ -93,11 +91,10 @@ class database():
             cursor.execute("END TRANSACTION")
             conn.commit()
         except Error as e:
-            print(f"{Fore.RED}{e}{Style.RESET_ALL}")
+            raise Exception(f"Error:{e}\nQuery:{query}\nParmas:{params}")
         finally:
             if conn:
                 conn.close()
-        
 
 
     def init_setup(self):

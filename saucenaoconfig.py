@@ -14,10 +14,12 @@ class config:
         if not os.path.exists(self.__CONFIG_FILE):
             self.settings = {
                 "DEFAULT_BROWSER": "firefox",
-                "LOG_NAME": "./saucenao_log.txt",
-                "DATABASE_NAME": "./saucenaoDB.db"
+                "IMG_DATABASE": "./saucenaoDB.db",
+                "TEST_IMG_DATABASE": "./saucenaoDB_TEST.db",
+                "HIGH_THRESHOLD": 92.0,
+                "LOW_THRESHOLD": 65.0,
             }
-            json.dump(self.settings, open(self.__CONFIG_FILE, "w"))
+            json.dump(self.settings, open(self.__CONFIG_FILE, "w"), ensure_ascii=False, indent=4)
         else:
             self.settings = json.load(open(self.__CONFIG_FILE))
             

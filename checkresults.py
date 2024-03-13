@@ -44,11 +44,11 @@ def display_results(image:Image, results:list[Saucenao_Result]):
 
     try:
         while True:
-            input_val = input(f"Enter results that match separated by comma. (n - none/q - quit): ").lower()
+            input_val = input(f"Enter result(s) that match separated by ','. (n - none/q - quit): ").lower()
             match input_val:
                 case "n":
                     ids = [str(r.result_uid) for r in results]
-                    update_status("".join(ids))
+                    update_status(",".join(ids))
                     break
                 case "q":
                     print("Exited.")
@@ -67,9 +67,9 @@ def display_results(image:Image, results:list[Saucenao_Result]):
         print(e)
 
 
-def check_low_threshold_results(threshold:float, force:bool):
+def check_low_threshold_results(threshold:float):
     try:
-        image_list:list[Image] = [Image(r) for r in imgDB.execute_query(""" SELECT * FROM Images""")]
+        image_list:list[Image] = [Image(r) for r in imgDB.execute_query("""SELECT * FROM Images""")]
         for i in image_list:
             if not os.path.exists(i.full_path):
                 remove_file(i.image_uid)

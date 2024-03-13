@@ -1,6 +1,9 @@
-config.json
-saucenao_log.txt
 __pycache__/*
 .vscode/*
-saucenaoDB.db
+Test_Files/*
+
 *.db-journal
+
+config.json
+saucenao_log.txt
+*.db

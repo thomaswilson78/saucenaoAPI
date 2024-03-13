@@ -84,6 +84,7 @@ class API(object):
         """Extracts the image's bytes and adds it as a parameter to be used in the request."""
         image = Image.open(fname)
         image = image.convert('RGB')
+        dimensions = image.size
         image.thumbnail(API.__THUMBSIZE, resample=Image.ANTIALIAS)
         imageData = io.BytesIO()
         image.save(imageData,format='PNG')
@@ -91,7 +92,7 @@ class API(object):
         imageData.close()
         image.close()
         
-        return file
+        return (file, dimensions)
     
     
     def __set_params(self, params:dict[str:any]) -> dict[str:any]:
@@ -106,6 +107,7 @@ class API(object):
     def __fake_response(self): 
         """For debugging purposes, send a simulated response to prevent usage of daily searches."""
 
+        # Provides 3 results: above 90, between 90-60, and below 60.
         return """{
                   "header": {
                     "user_id": "117582",
@@ -144,7 +146,7 @@ class API(object):
                         "ext_urls": [
                           "https:\\/\\/danbooru.donmai.us\\/post\\/show\\/4701825"
                         ],
-                        "danbooru_id": 4701825,
+                        "danbooru_id": 2582414,
                         "creator": "kimblee",
                         "material": "granblue fantasy",
                         "characters": "andira (granblue fantasy), andira (summer) (granblue fantasy)",
@@ -153,7 +155,7 @@ class API(object):
                     },
                     {
                       "header": {
-                        "similarity": "54.84",
+                        "similarity": "78.84",
                         "thumbnail": "https:\\/\\/img3.saucenao.com\\/booru\\/b\\/5\\/b584e1c1f46338cd06be1c238c80955e_0.jpg?auth=ItKA4sEO2vFBWCQkZKSNIw\\u0026exp=1710874800",
                         "index_id": 9,
                         "index_name": "Index #9: Danbooru - b584e1c1f46338cd06be1c238c80955e_0.jpg",
@@ -195,18 +197,19 @@ class API(object):
                 }"""
 
 
-    def send_request(self, fname: str, params: dict[str:any] = {}):
+    def send_request(self, file: str, params: dict[str:any] = {}) -> dict[str:any]:
         """Sends request to Saucenao's API and returns response.
 
-        fname: The full file name of the file that will be extracted and sent.
-        params: Additional parameters to include in search (any parameters set in constructor will use those values).
+        file: Image file that will be extracted and sent.
+        params: Additional parameters to include in search.
         """
-        response = []
-        file = API.__get_image_data(fname)
+        response = {}
+        file, dimensions = API.__get_image_data(file)
+        response["image"] = {"dimensions": dimensions}
         params = self.__set_params(params)
 
         if IS_DEBUG:
-            response = json.JSONDecoder(object_pairs_hook=OrderedDict).decode(self.__fake_response())
+            response["response"] = json.JSONDecoder(object_pairs_hook=OrderedDict).decode(self.__fake_response())
         else:
             r = requests.post("http://saucenao.com/search.php", params=params, files=file)
 
@@ -216,7 +219,7 @@ class API(object):
                 case 429:
                     raise Exception("Out of daily searches. Try again later.")
                 case 200:
-                    response = json.JSONDecoder(object_pairs_hook=OrderedDict).decode(r.text)
+                    response["response"] = json.JSONDecoder(object_pairs_hook=OrderedDict).decode(r.text)
                 # Generally non-200 statuses are due to some other issue like overloaded servers
                 case _:
                     raise Exception(f"Status Code: {r.status_code}\nMessage: {r.reason}")
