@@ -147,19 +147,18 @@ class database():
         #"""
 
 
-    def migrate_log(self):
-        unique_files = set(logwriter.extract_log("./saucenao_log.txt"))
-        logs = [l.split(",") for l in unique_files]
-        queries = []
-        for sim, full_path, illus_id, status in logs:
-            file_name, ext = os.path.splitext(os.path.split(full_path)[1])
-            status = status.replace("\n","")
-            queries.append(f'INSERT INTO Images (file_name, full_path, ext) VALUES ("{file_name}", "{full_path}", "{ext}");')
-            queries.append("INSERT INTO Saucenao_Results (image_uid, site_flag, site_id, similarity, status)" + 
-                           f"VALUES (last_insert_rowid(), {512}, {illus_id}, {sim}, {status == 'n'});")
-        self.execute_mass_transaction(queries)
-        print("Done")
-                
-        
-#var = database()
-#var.migrate_log()
+class Image:
+    def __init__(self, datarow):
+        self.image_uid = datarow[0]
+        self.file_name = datarow[1]
+        self.full_path = datarow[2]
+        self.ext = datarow[3]
+
+class Saucenao_Result:
+    def __init__(self, datarow):
+        self.result_uid = datarow[0]
+        self.image_uid = datarow[1]
+        self.site_flag = datarow[2]
+        self.site_id = datarow[3]
+        self.similarity = datarow[4]
+        self.status = datarow[5]

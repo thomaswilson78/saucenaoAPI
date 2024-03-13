@@ -96,7 +96,7 @@ class API(object):
     
     def __set_params(self, params:dict[str:any]) -> dict[str:any]:
         """Sets required parameters that were initialized in constructor."""
-        params["minsim"] = self.minsim
+        params["minsim"] = str(self.minsim) + "!"
         params["output_type"] = self.output_type.value
         params["dbmask"] = self.dbmask
         params["api_key"] = self.__API_KEY
@@ -106,65 +106,94 @@ class API(object):
     def __fake_response(self): 
         """For debugging purposes, send a simulated response to prevent usage of daily searches."""
 
-        return OrderedDict([
-            ('header', OrderedDict([
-                ('user_id', '117582'), 
-                ('account_type', '1'), 
-                ('short_limit', '4'), 
-                ('long_limit', '100'), 
-                ('long_remaining', 91), 
-                ('short_remaining', 3), 
-                ('status', 0), 
-                ('results_requested', '8'), 
-                ('index', OrderedDict([
-                    ('9', OrderedDict([
-                        ('status', 0), 
-                        ('parent_id', 9), 
-                        ('id', 9), 
-                        ('results', 8)
-                    ]))
-                ])), 
-                ('search_depth', '128'), 
-                ('minimum_similarity', 53.72), 
-                ('query_image_display', '/userdata/0ObThg3E3.png.png'), 
-                ('query_image', '0ObThg3E3.png'), 
-                ('results_returned', 8)
-            ])), 
-            ('results', [[OrderedDict([
-                ('header', OrderedDict([
-                    ('similarity', '96.22'), 
-                    ('thumbnail', 'https://img3.saucenao.com/booru/f/6/f603559b53625c48d47e5cba07cb380a_0.jpg?auth=AtyVEePg7VbVaI_Rx0uX9A&exp=1710874800'), 
-                    ('index_id', 9), 
-                    ('index_name', 'Index #9: Danbooru - f603559b53625c48d47e5cba07cb380a_0.jpg'), 
-                    ('dupes', 0), 
-                    ('hidden', 0)
-                ])), 
-                ('data', OrderedDict([
-                    ('ext_urls', ['https://danbooru.donmai.us/post/show/4701825']), 
-                    ('danbooru_id', 4701825), 
-                    ('creator', 'kimblee'), 
-                    ('material', 'granblue fantasy'), 
-                    ('characters', 'andira (granblue fantasy), andira (summer) (granblue fantasy)'), 
-                    ('source', 'https://i.pximg.net/img-original/img/2021/08/14/00/00/13/91953701')
-                ])),
-                ('header', OrderedDict([
-                    ('similarity', '54.84'), 
-                    ('thumbnail', 'https://img3.saucenao.com/booru/b/5/b584e1c1f46338cd06be1c238c80955e_0.jpg?auth=ItKA4sEO2vFBWCQkZKSNIw&exp=1710874800'), 
-                    ('index_id', 9), 
-                    ('index_name', 'Index #9: Danbooru - b584e1c1f46338cd06be1c238c80955e_0.jpg'), 
-                    ('dupes', 0), 
-                    ('hidden', 0)
-                ])), 
-                ('data', OrderedDict([
-                    ('ext_urls', ['https://danbooru.donmai.us/post/show/4701825']), 
-                    ('danbooru_id', 2710323), 
-                    ('creator', 'kanachirou'), 
-                    ('material', 'kantai collection'), 
-                    ('characters', 'prinz eugen (kancolle)'), 
-                    ('source', 'https://i.pximg.net/img-original/img/2017/05/02/11/40/34/62691361')
-                ]))
-            ])]])
-        ])
+        return """{
+                  "header": {
+                    "user_id": "117582",
+                    "account_type": "1",
+                    "short_limit": "4",
+                    "long_limit": "100",
+                    "long_remaining": 90,
+                    "short_remaining": 3,
+                    "status": 0,
+                    "results_requested": "8",
+                    "index": {
+                      "9": {
+                        "status": 0,
+                        "parent_id": 9,
+                        "id": 9,
+                        "results": 8
+                      }
+                    },
+                    "search_depth": "128",
+                    "minimum_similarity": 0,
+                    "query_image_display": "\\/userdata\\/4u6TvvoH6.png.png",
+                    "query_image": "4u6TvvoH6.png",
+                    "results_returned": 8
+                  },
+                  "results": [
+                    {
+                      "header": {
+                        "similarity": "96.22",
+                        "thumbnail": "https:\\/\\/img3.saucenao.com\\/booru\\/f\\/6\\/f603559b53625c48d47e5cba07cb380a_0.jpg?auth=AtyVEePg7VbVaI_Rx0uX9A\\u0026exp=1710874800",
+                        "index_id": 9,
+                        "index_name": "Index #9: Danbooru - f603559b53625c48d47e5cba07cb380a_0.jpg",
+                        "dupes": 0,
+                        "hidden": 0
+                      },
+                      "data": {
+                        "ext_urls": [
+                          "https:\\/\\/danbooru.donmai.us\\/post\\/show\\/4701825"
+                        ],
+                        "danbooru_id": 4701825,
+                        "creator": "kimblee",
+                        "material": "granblue fantasy",
+                        "characters": "andira (granblue fantasy), andira (summer) (granblue fantasy)",
+                        "source": "https:\\/\\/i.pximg.net\\/img-original\\/img\\/2021\\/08\\/14\\/00\\/00\\/13\\/91953701"
+                      }
+                    },
+                    {
+                      "header": {
+                        "similarity": "54.84",
+                        "thumbnail": "https:\\/\\/img3.saucenao.com\\/booru\\/b\\/5\\/b584e1c1f46338cd06be1c238c80955e_0.jpg?auth=ItKA4sEO2vFBWCQkZKSNIw\\u0026exp=1710874800",
+                        "index_id": 9,
+                        "index_name": "Index #9: Danbooru - b584e1c1f46338cd06be1c238c80955e_0.jpg",
+                        "dupes": 0,
+                        "hidden": 0
+                      },
+                      "data": {
+                        "ext_urls": [
+                          "https:\\/\\/danbooru.donmai.us\\/post\\/show\\/2710323"
+                        ],
+                        "danbooru_id": 2710323,
+                        "creator": "kanachirou",
+                        "material": "kantai collection",
+                        "characters": "prinz eugen (kancolle)",
+                        "source": "https:\\/\\/i.pximg.net\\/img-original\\/img\\/2017\\/05\\/02\\/11\\/40\\/34\\/62691361"
+                      }
+                    },
+                    {
+                      "header": {
+                        "similarity": "52.72",
+                        "thumbnail": "https:\\/\\/img3.saucenao.com\\/booru\\/8\\/8\\/88928dbe56a45a736233dba64f555707_0.jpg?auth=31A_R1-QK5r88ve2IyEE8w\\u0026exp=1710874800",
+                        "index_id": 9,
+                        "index_name": "Index #9: Danbooru - 88928dbe56a45a736233dba64f555707_0.jpg",
+                        "dupes": 0,
+                        "hidden": 0
+                      },
+                      "data": {
+                        "ext_urls": [
+                          "https:\\/\\/danbooru.donmai.us\\/post\\/show\\/6179125"
+                        ],
+                        "danbooru_id": 6179125,
+                        "creator": "nashi chai1346",
+                        "material": "genshin impact, indie virtual youtuber",
+                        "characters": "nilou (genshin impact), nini yuuna",
+                        "source": "https:\\/\\/twitter.com\\/nashi_tw\\/status\\/1581261904169021440"
+                      }
+                    }
+                  ]
+                }"""
+
 
     def send_request(self, fname: str, params: dict[str:any] = {}):
         """Sends request to Saucenao's API and returns response.
@@ -172,12 +201,12 @@ class API(object):
         fname: The full file name of the file that will be extracted and sent.
         params: Additional parameters to include in search (any parameters set in constructor will use those values).
         """
-        results = []
+        response = []
         file = API.__get_image_data(fname)
         params = self.__set_params(params)
 
         if IS_DEBUG:
-            results = self.__fake_response()
+            response = json.JSONDecoder(object_pairs_hook=OrderedDict).decode(self.__fake_response())
         else:
             r = requests.post("http://saucenao.com/search.php", params=params, files=file)
 
@@ -187,26 +216,31 @@ class API(object):
                 case 429:
                     raise Exception("Out of daily searches. Try again later.")
                 case 200:
-                    results = json.JSONDecoder(object_pairs_hook=OrderedDict).decode(r.text)
+                    response = json.JSONDecoder(object_pairs_hook=OrderedDict).decode(r.text)
                 # Generally non-200 statuses are due to some other issue like overloaded servers
                 case _:
                     raise Exception(f"Status Code: {r.status_code}\nMessage: {r.reason}")
 
-        return results
+        return response
 
 
-class Response:
-    class Header:
+class Result:
+    class __Header:
         def __init__(self, resultsHeader):
-            self.similarity:float = resultsHeader["similarity"]
-            self.short_remaining:int = resultsHeader["short_remaining"]
-            self.long_remaining:int = resultsHeader["long_remaining"]
-    class Data:
+            self.similarity:float = float(resultsHeader["similarity"])
+            self.thumbnail:str = resultsHeader["thumbnail"]
+            self.index_id:int = int(resultsHeader["index_id"])
+            self.index_name:str = resultsHeader["index_name"]
+            self.dupes:int = int(resultsHeader["dupes"])
+            self.hidden:bool = bool(resultsHeader["hidden"])
+    class __Data:
         def __init__(self, db_bitmask, resultsData):
             if db_bitmask & API.DBMask.index_danbooru:
-                self.site_flag = int(API.DBMask.index_danbooru)
-                self.site_id = resultsData["danbooru_id"]
+                self.dan_id:int = int(resultsData["danbooru_id"])
+            #Placeholder for both an example and if I decide to expand functionality
+            #if db_bitmask & API.DBMask.index_gelbooru:
+            #    self.gel_id:int = int(resultsData["gelbooru_id"])
         
-    def __init__(self, db_bitmask, header, data) -> None:
-        self.header = self.Header(header)
-        self.data = self.Data(db_bitmask, data)
+    def __init__(self, db_bitmask, result) -> None:
+        self.header = self.__Header(result["header"])
+        self.data = self.__Data(db_bitmask, result["data"])

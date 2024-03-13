@@ -3,7 +3,6 @@
 import sys
 import codecs
 import click
-import logwriter
 import checkresults
 import addtodanbooru
 
