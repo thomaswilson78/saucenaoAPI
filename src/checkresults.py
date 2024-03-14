@@ -1,3 +1,8 @@
+if sys.platform == "linux":
+    sys.path.append(os.path.expanduser("~/pCloudDrive/repos/DanbooruAPI/"))
+elif sys.platform == "win32":
+    sys.path.append("P:/repos/DanbooruAPI/")
+
 import os
 import sys
 import webbrowser
@@ -5,12 +10,6 @@ import imgdatabase
 from imgdatabase import Image, Saucenao_Result
 import saucenaoconfig
 from colorama import Fore, Style
-
-if sys.platform == "linux":
-    sys.path.append(os.path.expanduser("~/pCloudDrive/repos/DanbooruAPI/"))
-elif sys.platform == "win32":
-    sys.path.append("P:/repos/DanbooruAPI/")
-
 import danbooru
 
 danAPI = danbooru.API()

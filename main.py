@@ -3,9 +3,9 @@
 import sys
 import codecs
 import click
-import checkresults
-import addtodanbooru
-import saucenaoconfig
+import src.checkresults as checkresults
+import src.addtodanbooru as addtodanbooru
+import src.saucenaoconfig as saucenaoconfig
 
 config = saucenaoconfig.config()
 
