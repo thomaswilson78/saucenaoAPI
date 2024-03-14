@@ -21,6 +21,8 @@ IS_DEBUG = hasattr(sys, 'gettrace') and sys.gettrace() is not None
 danAPI = danbooru.API()
 imgDB = imgdatabase.database()
 
+log_name = None
+
 
 # For people that generate AI art and such
 blacklisted_terms = [
@@ -69,25 +71,38 @@ def format_time(val):
     return (f'{val}' if val > 9 else f'0{val}')
 
 
-def write_log(msg, name):
+def create_log():
+    global log_name
+
     dt = datetime.datetime.now()
     formated_time = f"{dt.date()}_{format_time(dt.hour)}:{format_time(dt.minute)}"
-    path = os.path.expanduser("~/Desktop/saucenao_logs/")
-    if not os.path.exists(f"{path}"):
-        os.makedirs(f"{path}")
-    with open(f"{path}{name}_{formated_time}.log", "w") as f:
-        f.write(msg)
+    path = os.path.expanduser("~/_saucenao_logs/")
+    log_name = f"{path}saucenao_{formated_time}.log"
+    if not os.path.exists(f"log_name"):
+        if not os.path.exists(f"{path}"):
+            os.makedirs(f"{path}")
+        with open(f"{log_name}", "+w") as f:
+            f.write("")
 
 
-def __add_favorite(full_path:str, file_name:str, illust_id:int, similarity:int = None):
+def append_log(msg):
+    with open(f"{log_name}", "+a") as f:
+        f.write(f"{msg}\n")
+
+
+def output(msg:str, error:bool = False):
+    print(msg) if not error else print(f"{Fore.RED}ERROR: {msg}{Style.RESET_ALL}")
+    append_log(msg)
+
+
+def add_favorite(full_path:str, file_name:str, illust_id:int, similarity:int = None):
     danAPI.add_favorite(illust_id)
-    print(f"Match found ({similarity or 'via md5'}%): {file_name} favorited to {illust_id}, file removed.")
+    output(f"Match found ({similarity or 'via md5'}%): {file_name} favorited to {illust_id}, file removed.")
     if not IS_DEBUG:
         os.remove(full_path)
 
 
-
-def __check_danbooru(full_path:str, file_name:str) -> bool:
+def check_danbooru(full_path:str, file_name:str) -> bool:
     """Checks file for MD5 match on Danbooru."""
 
     params = {}
@@ -98,13 +113,13 @@ def __check_danbooru(full_path:str, file_name:str) -> bool:
     json_data = danAPI.get_posts(params)
     if any(json_data):
         for item in json_data:
-            __add_favorite(full_path, file_name, item["id"])
+            add_favorite(full_path, file_name, item["id"])
         return True
     
     return False
 
 
-def __process_results(full_path, file_name, response, high_threshold, low_threshold, db_bitmask, image_data):
+def process_results(full_path, file_name, response, high_threshold, low_threshold, db_bitmask, image_data):
     """summary: Extract file data and send to saucenao REST API. Log low similarity results to database."""
 
     # Get a list of all results above the minimum threshold.
@@ -121,9 +136,9 @@ def __process_results(full_path, file_name, response, high_threshold, low_thresh
                 width, height = image_data["dimensions"]
                 post = danAPI.get_post(result.data.dan_id)
                 if ((width+height) * .95) > (post["image_width"] + post["image_height"]):
-                    print("Danbooru resolution smaller, keeping original image.")
+                    output(f"Danbooru resolution smaller, keeping {file_name}.")
                 else:
-                    __add_favorite(full_path, file_name, result.data.dan_id, result.header.similarity)
+                    add_favorite(full_path, file_name, result.data.dan_id, result.header.similarity)
                     # Remove record as well since we won't need it.
                     imgDB.execute_change("DELETE FROM Images WHERE image_uid=?",[image_uid])
                     break # If image is determined a good enough match, move on.
@@ -133,14 +148,13 @@ def __process_results(full_path, file_name, response, high_threshold, low_thresh
         # Anything lower will need to be double checked via 'check-results'.
         else:
             insert_result(image_uid, saucenao.API.DBMask.index_danbooru, result.data.dan_id, result.header.similarity)
-            print(f"{file_name} didn't meet similarity quota: {result.header.similarity}%, added record.")
+            output(f"{file_name} didn't meet similarity quota: {result.header.similarity}%, added record.")
 
 
 def add_to_danbooru(directory:str, recursive:bool, high_threshold:int, low_threshold:int, schedule:bool):
     db_bitmask = int(saucenao.API.DBMask.index_danbooru)
     sauceAPI = saucenao.API(db_bitmask, low_threshold)
 
-    # Setup list of files to be searched
     all_files: list[str] = []
     if recursive: 
         all_files = [os.path.join(dirpath, f) for dirpath, _, files in os.walk(directory) for f in files]
@@ -148,13 +162,14 @@ def add_to_danbooru(directory:str, recursive:bool, high_threshold:int, low_thres
         all_files = os.listdir(directory)
     
     try:
+        create_log()
         for full_path in all_files:
             if skip_file(full_path):
                 continue
 
             file_name = os.path.split(full_path)[1]
-            # Saucenao has a 100 daily search limit, but Dan doesn't. We can save searches by checking image md5 on Dan.
-            if not __check_danbooru(full_path, file_name):
+            # Saucenao has a 100 daily search limit, but Dan doesn't. We can save searches by checking the image's md5 on Dan.
+            if not check_danbooru(full_path, file_name):
                 api_response = sauceAPI.send_request(full_path)
                 response = api_response["response"]
                 image_data = api_response["image"]
@@ -163,29 +178,24 @@ def add_to_danbooru(directory:str, recursive:bool, high_threshold:int, low_thres
                     long_remaining = response["header"]["long_remaining"]
                     print(f"Remaining Searches 30s|24h: {short_remaining}|{long_remaining}")
 
-                    __process_results(full_path, file_name, response, high_threshold, low_threshold, db_bitmask, image_data)
+                    process_results(full_path, file_name, response, high_threshold, low_threshold, db_bitmask, image_data)
 
                     # Check remaining searches.
                     if long_remaining <= 0:
-                        print("Reached daily search limit, unable to process more request at this time.")
+                        output("Reached daily search limit, unable to process more request at this time.")
                         break
                     elif short_remaining <= 0:
                         print("Out of searches for this 30 second period. Sleeping for 25 seconds...")
                         time.sleep(25)
                 else:
-                    insert_result(full_path, 0, 0, 0)
-                    print(f"No results found for {file_name}.")
-        # If we've gotten through all files, write a log record to indication as such.
+                    insert_image(full_path)
+                    output(f"No results found for {file_name}.")
+        # If we've gotten through all the files, write a log record to indication as such.
         else:
-            msg = f"All files scanned for {directory}"
-            name = "saucenao_completed"
-            write_log(msg, name)
+            output(f"All files scanned for {directory}")
     except Exception as e:
-        error_msg = (str(e))
-        name = "saucenao_error"
-        write_log(error_msg, name)
-        print(f"{Fore.RED}ERROR: {error_msg}{Style.RESET_ALL}")
+        output(str(e), True)
 
-    # Once finished, set the crontab job to the ending time, this way there will be ample time to refresh the usages.
+    # Once finished, set the crontab job to the ending time, this way there will be ample time to refresh all usages.
     if schedule:
         updateschedule.update_crontab_job(directory)
