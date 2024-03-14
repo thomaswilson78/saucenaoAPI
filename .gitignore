@@ -2,8 +2,7 @@
 .vscode/*
 Test_Files/*
 
+*.db
 *.db-journal
 
 config.json
-saucenao_log.txt
-*.db

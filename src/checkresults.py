@@ -30,8 +30,8 @@ def remove_file(image_uid:int):
     imgDB.execute_change("DELETE FROM Images WHERE image_uid = ?", [image_uid])
 
 
-def update_status(result_uid:str):
-    imgDB.execute_change("UPDATE Saucenao_Results SET status = 1 WHERE result_uid in (?)", [result_uid])
+def update_status(results:list[int]):
+    imgDB.execute_change(f"UPDATE Saucenao_Results SET status = 1 WHERE result_uid IN ({','.join('?' for _ in results)})", results)
 
 
 def display_results(image:Image, results:list[Saucenao_Result]):
@@ -47,8 +47,7 @@ def display_results(image:Image, results:list[Saucenao_Result]):
             input_val = input(f"Enter result(s) that match separated by ','. (n - none/q - quit): ").lower()
             match input_val:
                 case "n":
-                    ids = [str(r.result_uid) for r in results]
-                    update_status(",".join(ids))
+                    update_status([r.result_uid for r in results])
                     break
                 case "q":
                     print("Exited.")

@@ -61,10 +61,10 @@ class database():
             conn.commit()
             result = cursor.lastrowid
         except Error as e:
+            conn.rollback()
             raise Exception(f"Error:{e}\nQuery:{query}\nParmas:{params}")
         finally:
             if conn:
-                conn.rollback()
                 conn.close()
                 
         return result
