@@ -1,15 +1,16 @@
+import os
+import sys
+import webbrowser
+from colorama import Fore, Style
+import src.imgdatabase as imgdatabase
+from src.imgdatabase import Image, Saucenao_Result
+import src.saucenaoconfig as saucenaoconfig
+
 if sys.platform == "linux":
     sys.path.append(os.path.expanduser("~/pCloudDrive/repos/DanbooruAPI/"))
 elif sys.platform == "win32":
     sys.path.append("P:/repos/DanbooruAPI/")
 
-import os
-import sys
-import webbrowser
-import imgdatabase
-from imgdatabase import Image, Saucenao_Result
-import saucenaoconfig
-from colorama import Fore, Style
 import danbooru
 
 danAPI = danbooru.API()

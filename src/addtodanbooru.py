@@ -3,11 +3,11 @@ import sys
 import time
 import hashlib
 import datetime
-import imgdatabase
-import updateschedule
-import saucenao
-from saucenao import Result
 from colorama import Fore, Style
+import src.imgdatabase as imgdatabase
+import src.updateschedule as updateschedule
+import src.saucenao as saucenao
+from src.saucenao import Result
 
 if sys.platform == "linux":
     sys.path.append(os.path.expanduser("~/pCloudDrive/repos/DanbooruAPI/"))

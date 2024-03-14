@@ -1,7 +1,7 @@
 import sys
-import saucenaoconfig
 import sqlite3
 from sqlite3 import Error
+import src.saucenaoconfig as saucenaoconfig
 
 IS_DEBUG = hasattr(sys, 'gettrace') and sys.gettrace() is not None 
 
