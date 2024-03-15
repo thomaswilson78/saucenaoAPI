@@ -126,7 +126,7 @@ def process_results(full_path, file_name, response, high_threshold, low_threshol
     results:list[Result] = list(filter(lambda r: r.header.similarity > low_threshold, [Result(db_bitmask, r) for r in response["results"]]))
     image_uid = insert_image(full_path)
     if not any(results):
-        print(f"No valid results found for {file_name}.")
+        output(f"No valid results found for {file_name}.")
         return
 
     for result in results:
