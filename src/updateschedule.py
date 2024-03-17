@@ -2,6 +2,7 @@ import datetime
 import re
 from crontab import CronTab
 
+
 def format_command(directory:str):
     return f"cd ~/pCloudDrive/repos/saucenao ; python main.py add-to-danbooru {directory} -r -s"
 

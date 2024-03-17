@@ -7,7 +7,7 @@ import src.checkresults as checkresults
 import src.addtodanbooru as addtodanbooru
 import src.saucenaoconfig as saucenaoconfig
 
-config = saucenaoconfig.config()
+config = saucenaoconfig.config
 
 sys.stdout = codecs.getwriter('utf8')(sys.stdout.detach())
 sys.stderr = codecs.getwriter('utf8')(sys.stderr.detach())

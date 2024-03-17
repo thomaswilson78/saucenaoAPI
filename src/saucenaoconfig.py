@@ -5,7 +5,7 @@ import json
 IS_DEBUG = hasattr(sys, 'gettrace') and sys.gettrace() is not None 
 
 
-class config:
+class __config:
     __CONFIG_FILE="./config.json"
 
     def __init__(self):
@@ -27,3 +27,5 @@ class config:
         else:
             self.settings = json.load(open(self.__CONFIG_FILE))
             
+
+config = __config()

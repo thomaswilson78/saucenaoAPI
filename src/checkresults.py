@@ -2,8 +2,9 @@ import os
 import sys
 import webbrowser
 from colorama import Fore, Style
-import src.imgdatabase as imgdatabase
-from src.imgdatabase import Image, Saucenao_Result
+from src.modules.imgmodules import Image, Saucenao_Result
+import src.repos.imagerepo as imagerepo
+import src.repos.saucenaoresultrepo as saucenaoresultrepo
 import src.saucenaoconfig as saucenaoconfig
 
 if sys.platform == "linux":
@@ -14,26 +15,14 @@ elif sys.platform == "win32":
 import danbooru
 
 danAPI = danbooru.API()
-config = saucenaoconfig.config()
-imgDB = imgdatabase.database()
+config = saucenaoconfig.config
 
-results_query = """
-   SELECT * FROM Saucenao_Results 
-   WHERE 
-    image_uid = ? AND 
-    similarity >= ? AND
-    status = 0
-"""
 
 
 def remove_file(image:Image):
-    imgDB.execute_change("DELETE FROM Images WHERE image_uid = ?", [int(image.image_uid)])
+    imagerepo.delete_image(int(image.image_uid))
     if os.path.exists(image.full_path):
         os.remove(image.full_path)
-
-
-def update_status(results:list[int]):
-    imgDB.execute_change(f"UPDATE Saucenao_Results SET status = 1 WHERE result_uid IN ({','.join('?' for _ in results)})", results)
 
 
 def add_favorite(img_id):
@@ -53,7 +42,7 @@ def display_results(image:Image, results:list[Saucenao_Result]):
             input_val = input(f"Enter result(s) that match separated by ','. (a - all/n - none): ").lower()
             match input_val:
                 case "n":
-                    update_status([r.result_uid for r in results])
+                    saucenaoresultrepo.update_results_status([r.result_uid for r in results])
                     break
                 case "a":
                     for r in results:
@@ -74,14 +63,14 @@ def display_results(image:Image, results:list[Saucenao_Result]):
 
 def check_low_threshold_results(threshold:float):
     try:
-        image_list:list[Image] = [Image(r) for r in imgDB.execute_query("""SELECT * FROM Images""")]
+        image_list:list[Image] = [Image(r) for r in imagerepo.get_images()]
         for i in image_list:
             if not os.path.exists(i.full_path):
                 remove_file(i)
                 print(f"{i.file_name} already deleted. Removed entry.")
                 continue
 
-            results_list = [Saucenao_Result(r) for r in imgDB.execute_query(results_query, [i.image_uid, threshold])]
+            results_list = [Saucenao_Result(r) for r in saucenaoresultrepo.get_results(i.image_uid, threshold)]
             if any(results_list):
                 print(f"{Fore.LIGHTGREEN_EX}{i.file_name+i.ext} {Fore.LIGHTMAGENTA_EX}{Style.RESET_ALL}")
                 display_results(i, results_list)

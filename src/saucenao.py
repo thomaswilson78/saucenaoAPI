@@ -8,7 +8,6 @@ from enum import Enum, IntFlag, auto
 import src.saucenaoconfig as saucenaoconfig
 
 
-
 class API(object):
     """Library that interacts with Saucenao's REST API tools."""
     class Output_Type(Enum):
@@ -102,7 +101,7 @@ class API(object):
         return params
     
     
-    def __fake_response(self): 
+    def __test_response(self): 
         """For debugging purposes, send a simulated response to prevent usage of daily searches."""
 
         # Provides 3 results: above 90, between 90-60, and below 60.
@@ -207,7 +206,7 @@ class API(object):
         params = self.__set_params(params)
 
         if saucenaoconfig.IS_DEBUG:
-            response["response"] = json.JSONDecoder(object_pairs_hook=OrderedDict).decode(self.__fake_response())
+            response["response"] = json.JSONDecoder(object_pairs_hook=OrderedDict).decode(self.__test_response())
         else:
             r = requests.post("http://saucenao.com/search.php", params=params, files=file)
 
