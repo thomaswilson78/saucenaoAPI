@@ -2,7 +2,7 @@ import os
 import io
 import json
 import requests
-from PIL import Image
+from PIL import Image, ImageFile
 from collections import OrderedDict
 from enum import Enum, IntFlag, auto
 import src.saucenaoconfig as saucenaoconfig
@@ -79,6 +79,7 @@ class API(object):
 
     def __get_image_data(fname):
         """Extracts the image's bytes and adds it as a parameter to be used in the request."""
+        ImageFile.LOAD_TRUNCATED_IMAGES = True
         image = Image.open(fname)
         image = image.convert('RGB')
         dimensions = image.size
