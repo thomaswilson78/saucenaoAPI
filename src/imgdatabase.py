@@ -1,16 +1,13 @@
-import sys
 import sqlite3
 from sqlite3 import Error
 import src.saucenaoconfig as saucenaoconfig
-
-IS_DEBUG = hasattr(sys, 'gettrace') and sys.gettrace() is not None 
 
 config = saucenaoconfig.config()
 
 
 class database():
     def __init__(self):
-        self.db_instance = config.settings["IMG_DATABASE"] if not IS_DEBUG else config.settings["TEST_IMG_DATABASE"]
+        self.db_instance = config.settings["IMG_DATABASE"] if not saucenaoconfig.IS_DEBUG else config.settings["TEST_IMG_DATABASE"]
         self.init_setup()
 
 
@@ -113,10 +110,13 @@ class database():
 
         self.execute_nonquery("""
             CREATE TABLE IF NOT EXISTS Images (
-                image_uid   INTEGER     PRIMARY KEY,
-                file_name   TEXT,
-                full_path   TEXT        UNIQUE,
-                ext         TEXT
+                image_uid INTEGER PRIMARY KEY,
+                file_name TEXT,
+                full_path TEXT    UNIQUE
+                                  NOT NULL,
+                ext       TEXT,
+                md5       TEXT    UNIQUE
+                                  NOT NULL
             )
         """)
         self.execute_nonquery("""

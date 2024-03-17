@@ -1,14 +1,12 @@
 import os
-import sys
 import io
 import json
 import requests
 from PIL import Image
 from collections import OrderedDict
 from enum import Enum, IntFlag, auto
+import src.saucenaoconfig as saucenaoconfig
 
-
-IS_DEBUG = hasattr(sys, 'gettrace') and sys.gettrace() is not None 
 
 
 class API(object):
@@ -208,7 +206,7 @@ class API(object):
         response["image"] = {"dimensions": dimensions}
         params = self.__set_params(params)
 
-        if IS_DEBUG:
+        if saucenaoconfig.IS_DEBUG:
             response["response"] = json.JSONDecoder(object_pairs_hook=OrderedDict).decode(self.__fake_response())
         else:
             r = requests.post("http://saucenao.com/search.php", params=params, files=file)

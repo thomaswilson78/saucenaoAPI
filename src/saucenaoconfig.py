@@ -1,5 +1,9 @@
 import os
+import sys
 import json
+
+IS_DEBUG = hasattr(sys, 'gettrace') and sys.gettrace() is not None 
+
 
 class config:
     __CONFIG_FILE="./config.json"
