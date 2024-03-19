@@ -2,10 +2,11 @@ import os
 import sys
 import webbrowser
 from colorama import Fore, Style
-from src.modules.imgmodules import Image, Saucenao_Result
+import src.saucenaoconfig as saucenaoconfig
+from src.modules.imgmodule import Image, Saucenao_Result
+from src.database.imgdatabase import Parameter
 import src.repos.imagerepo as imagerepo
 import src.repos.saucenaoresultrepo as saucenaoresultrepo
-import src.saucenaoconfig as saucenaoconfig
 
 if sys.platform == "linux":
     sys.path.append(os.path.expanduser("~/pCloudDrive/repos/DanbooruAPI/"))
@@ -29,6 +30,7 @@ def add_favorite(img_id):
     danAPI.add_favorite(img_id)
     print(f"{img_id} added to favorites.")
 
+
 def display_results(image:Image, results:list[Saucenao_Result]):
     webbrowser.get(config.settings["DEFAULT_BROWSER"]).open(image.full_path, new = 0)
 
@@ -42,7 +44,10 @@ def display_results(image:Image, results:list[Saucenao_Result]):
             input_val = input(f"Enter result(s) that match separated by ','. (a - all/n - none): ").lower()
             match input_val:
                 case "n":
-                    saucenaoresultrepo.update_results_status([r.result_uid for r in results])
+                    saucenaoresultrepo.update_results(
+                        update_params=[Parameter("status", 1)],
+                        where_params=[Parameter("result_uid", [r.result_uid for r in results])
+                    ])
                     break
                 case "a":
                     for r in results:
@@ -63,14 +68,18 @@ def display_results(image:Image, results:list[Saucenao_Result]):
 
 def check_low_threshold_results(threshold:float):
     try:
-        image_list:list[Image] = [Image(r) for r in imagerepo.get_images()]
+        image_list = imagerepo.get_images([Parameter("status", 1)])
         for i in image_list:
             if not os.path.exists(i.full_path):
                 remove_file(i)
                 print(f"{i.file_name} already deleted. Removed entry.")
                 continue
 
-            results_list = [Saucenao_Result(r) for r in saucenaoresultrepo.get_results(i.image_uid, threshold)]
+            results_list = saucenaoresultrepo.get_results([
+                Parameter("image_uid", i.image_uid),
+                Parameter("similarity", threshold, Parameter.Condition.GRTOREQUAL),
+                Parameter("status", 0),
+            ])
             if any(results_list):
                 print(f"{Fore.LIGHTGREEN_EX}{i.file_name+i.ext} {Fore.LIGHTMAGENTA_EX}{Style.RESET_ALL}")
                 display_results(i, results_list)

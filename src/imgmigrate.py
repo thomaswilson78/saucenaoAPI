@@ -7,7 +7,8 @@
 import os
 import sys
 import src.repos.imagerepo as imagerepo
-from src.modules.imgmodules import Image
+from src.modules.imgmodule import Image
+from src.database.imgdatabase import Parameter
 
 __pcloud_path = ""
 
@@ -28,7 +29,7 @@ def migrate_files(dir):
         if file_name in image_ids:
             sourced_name = os.path.split(image_ids[file_name])[1]
             new_full_path = f"{path}/{sourced_name}"
-            data = imagerepo.search_by_full_path(full_path)
+            data = imagerepo.get_images([Parameter("full_path", full_path)])
             if any(data):
                 image = Image(data[0])
                 imagerepo.update_image(image.image_uid, sourced_name, new_full_path)

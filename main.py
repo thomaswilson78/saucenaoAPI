@@ -62,12 +62,17 @@ def check_results(threshold:float):
               Results underthreshold are discarded. Default can be changed in config.json.""")
 @click.option("-s", "--schedule", is_flag=True, default=False, show_default=True, 
               help="Schedules a crontab task to run.")
-def add_to_danbooru(directory:str, recursive:bool, high_threshold:int, low_threshold:int, schedule:bool):
+@click.option("-m", "--md5_only", is_flag=True, default=False, show_default=True, 
+              help="Only scan files via MD5. This only searches Danbooru and will not be limited to daily searches by Saucenao.")
+def add_to_danbooru(directory:str, recursive:bool, high_threshold:int, low_threshold:int, schedule:bool, md5_only:bool):
     """
     Connects to the Saucenao web API to look at specified file(s) and determine if they match. If they match, will favorite the image
     on Danbooru then remove the file from the local machine.
     """
-    addtodanbooru.add_to_danbooru(directory, recursive, high_threshold, low_threshold, schedule)
+    if md5_only:
+        addtodanbooru.md5_scan(directory, recursive)
+    else:
+        addtodanbooru.full_scan(directory, recursive, high_threshold, low_threshold, schedule)
 
 
 commands.add_command(check_results)

@@ -1,6 +1,7 @@
 import sqlite3
 from sqlite3 import Error
 import src.saucenaoconfig as saucenaoconfig
+from enum import Enum
 
 config = saucenaoconfig.config
 
@@ -35,6 +36,7 @@ class __database():
         results = None
         try:
             conn = self.create_connection()
+            conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
             cursor.execute("PRAGMA foreign_keys=ON;")
             cursor.execute(query, params)
@@ -95,17 +97,24 @@ class __database():
 
 
     def init_setup(self):
-        self.execute_nonquery("""
-            CREATE TABLE IF NOT EXISTS Status (
-                status          INTEGER     UNIQUE,
-                status_type     TEXT
-            )
-        """)
-        if not self.execute_query("SELECT * FROM Status"):
+        for x in ["Saucenao_Results", "Images"]:
+            self.execute_nonquery(f"""
+                CREATE TABLE IF NOT EXISTS Status_{x} (
+                    status          INTEGER     PRIMARY KEY,
+                    status_type     TEXT
+                )
+            """)
+        if not self.execute_query("SELECT * FROM Status_Saucenao_Results"):
             self.execute_change("""
-                INSERT INTO Status VALUES
+                INSERT INTO Status_Saucenao_Results VALUES
                 (0, "Unknown"),
                 (1, "No Match")
+            """)
+        if not self.execute_query("SELECT * FROM Status_Images"):
+            self.execute_change("""
+                INSERT INTO Status_Images VALUES
+                (1, "Full Scan"),
+                (2, "MD5 Only Scan")
             """)
 
         self.execute_nonquery("""
@@ -116,7 +125,10 @@ class __database():
                                   NOT NULL,
                 ext       TEXT,
                 md5       TEXT    UNIQUE
-                                  NOT NULL
+                                  NOT NULL,
+                status    INTEGER DEFAULT 1,
+                FOREIGN KEY (status)
+                    REFERENCES Status_Images(status)
             )
         """)
         self.execute_nonquery("""
@@ -130,7 +142,7 @@ class __database():
                 FOREIGN KEY (image_uid)
                     REFERENCES Images(image_uid) ON DELETE CASCADE,
                 FOREIGN KEY (status)
-                    REFERENCES Status(status)
+                    REFERENCES Status_Saucenao_Results(status)
             )
         """)
         # Maybe add this later, but for now we're only using danbooru
@@ -145,3 +157,64 @@ class __database():
 
 
 db_handler = __database()
+
+
+class Parameter():
+    class Type(Enum):
+        AND = 0,
+        OR = 1
+
+    class Condition(Enum):
+        EQUAL = 0,
+        GREATER = 1,
+        GRTOREQUAL = 2,
+        LESS = 3,
+        LESOREQUAL = 4,
+        IN = 5
+
+    def __init__(self, col_name:str, value, search_condition:Condition = Condition.EQUAL, search_type:Type = Type.AND):
+        """An object to simplify writing conditional clauses to query strings.
+
+        Args:
+            col_name (str): Name of the column to be searched.
+            value (any): Value to search for.
+            search_condition (search_condition, optional): The type of condition to search for i.e. '=', 'IN', '>', etc. Defaults to 'EQUAL'. If value is list, overrides to 'IN'
+            search_type (search_type, optional): Specify whether searching by AND or OR. Defaults to 'AND'.
+        """
+        self.col_name = col_name
+        self.value = value
+        self.condition = search_condition if not type(value) is list else self.Condition.IN
+        self.type = search_type 
+        
+   
+    def __get_condition(self):
+        match self.condition:
+            case self.Condition.EQUAL:
+                return " = "
+            case self.Condition.GREATER:
+                return " > "
+            case self.Condition.GRTOREQUAL:
+                return " >= "
+            case self.Condition.LESS:
+                return " < "
+            case self.Condition.LESOREQUAL:
+                return " <= "
+            case self.Condition.IN:
+                return " IN "
+
+
+    def __get_type(self):
+        match self.type:
+            case self.Type.AND:
+                return " AND "
+            case self.Type.OR:
+                return " OR "
+        
+        
+    def get_where(self) -> str:
+        query = f"{self.__get_type()}{self.col_name}{self.__get_condition()}"
+        if type(self.value) is list:
+            query += f"({','.join('?' for _ in self.value)})"
+        else:
+            query += "?"
+        return query

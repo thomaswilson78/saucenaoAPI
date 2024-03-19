@@ -3,14 +3,16 @@ import sys
 import time
 import hashlib
 import datetime
+from enum import Enum
 from colorama import Fore, Style
-import src.updateschedule as updateschedule
-import src.saucenao as saucenao
+from src.database.imgdatabase import Parameter
+from src.modules.imgmodule import Image
+from src.saucenao import Result
 import src.repos.imagerepo as imagerepo
 import src.repos.saucenaoresultrepo as saucenaoresultrepo
+import src.saucenao as saucenao
 import src.saucenaoconfig as saucenaoconfig
-from src.saucenao import Result
-from enum import Enum
+import src.updateschedule as updateschedule
 
 if sys.platform == "linux":
     sys.path.append(os.path.expanduser("~/pCloudDrive/repos/DanbooruAPI/"))
@@ -25,9 +27,10 @@ danAPI = danbooru.API()
 log_name = None
 
 
-# For people that generate AI art and such
+# For people that generate AI art or art specifically saved to a collection for favorite artist.
 blacklisted_terms = [
     "AI Art",
+    "Artist Collections",
     "8co28",
     "AIart_Fring",
     "HoDaRaKe",
@@ -41,7 +44,7 @@ blacklisted_terms = [
     "sayaka_aiart",
     "tocotoco365",
     "truckkunart",
-    "truckkunsfw"
+    "truckkunsfw",
 ]
 
 
@@ -52,12 +55,36 @@ class msg_status(Enum):
 
 
 
-def skip_file(full_path:str):
+def get_files(directory:str, recursive:bool) -> list[str]:
+    if recursive: 
+        return [os.path.join(dirpath, f) for dirpath, _, files in os.walk(directory) for f in files]
+    else:
+        files:list[str] = [os.path.join(directory, f) for f in os.listdir(directory)]
+        return list(filter(lambda x: os.path.isfile(x), files))
+
+
+def valid_file(full_path:str):
     """Skip non-files, files that have already been searched before, not of a valid extension, or has blacklisted terms (mainly for AI art)."""
-    return (not os.path.isfile(full_path) or
-           not os.path.splitext(full_path)[1] in saucenao.API.get_allowed_extensions() or 
-           any(bl in full_path for bl in blacklisted_terms) or
-           any(imagerepo.search_by_full_path(full_path)))
+    return (
+       os.path.isfile(full_path) and
+       os.path.splitext(full_path)[1] in saucenao.API.get_allowed_extensions() and
+       not any(bl in full_path for bl in blacklisted_terms) and
+       not any(imagerepo.get_images([Parameter("full_path", full_path), Parameter("status", 1)]))
+    )
+
+
+def is_existing(full_path:str, md5:str) -> bool:
+    """Check DB to ensure image isn't a duplicate."""
+    md5_response = imagerepo.check_existing_file(full_path, md5)
+    match md5_response["status"]:
+        case 1: # Duplicate
+            output(md5_response["msg"], msg_status.Warning)    
+            if not saucenaoconfig.IS_DEBUG:
+                os.remove(full_path)
+        case 2: # Renamed/Moved
+            output(md5_response["msg"], msg_status.Warning)    
+    
+    return md5_response["status"] > 0
 
 
 def format_time(val):
@@ -82,8 +109,9 @@ def create_log():
 
 
 def append_log(msg):
-    with open(f"{log_name}", "+a") as f:
-        f.write(f"{msg}\n")
+    if not log_name is None and os.path.exists(log_name):
+        with open(f"{log_name}", "+a") as f:
+            f.write(f"{msg}\n")
 
 
 def output(msg:str, status:msg_status = msg_status.OK):
@@ -107,7 +135,6 @@ def add_favorite(full_path:str, file_name:str, illust_id:int, similarity:int = N
 
 def check_danbooru(full_path:str, file_name:str, md5:str) -> bool:
     """Checks file for MD5 match on Danbooru."""
-
     # {"md5": f"{img_md5}"} <- NOTE: DON'T USE. No results gives 404 error. "tags" is safer, returns empty if nothing found.
     params = {"tags": f"md5:{md5}"}
     
@@ -120,12 +147,46 @@ def check_danbooru(full_path:str, file_name:str, md5:str) -> bool:
     return False
 
 
+def md5_checked(full_path):
+    return any(imagerepo.get_images([Parameter("full_path", full_path), Parameter("status", [1,2])]))
+
+
+def md5_scan(directory:str, recursive:bool):
+    for full_path in get_files(directory, recursive):
+        # Check that file hasn't been scanned before
+        if md5_checked(full_path):
+            continue
+        
+        file_name = os.path.basename(full_path)
+
+        with open(full_path, "rb") as file:
+            md5 = hashlib.md5(file.read()).hexdigest()
+
+            if is_existing(full_path, md5):
+                continue
+                
+            if not check_danbooru(full_path, file_name, md5):
+                print(f"No match found for {file_name}")
+                imagerepo.insert_image(full_path, md5, imagerepo.image_status.md5_only_scan)
+
+
 def process_results(full_path, file_name, md5, response, high_threshold, low_threshold, db_bitmask, image_data):
     """summary: Extract file data and send to saucenao REST API. Log low similarity results to database."""
 
     # Get a list of all results above the minimum threshold.
     results:list[Result] = list(filter(lambda r: r.header.similarity > low_threshold, [Result(db_bitmask, r) for r in response["results"]]))
-    image_uid = imagerepo.insert_image(full_path, md5)
+    # Get image if already searched before via md5, otherwise added new image record (md5 is unique so should only be 1)
+    image = imagerepo.get_images([Parameter("md5", md5)])
+    if any(image):
+        image_uid = image.pop().image_uid 
+        # Need to update to full scan status
+        imagerepo.update_image(
+            update_params=[Parameter("status", 1)],
+            where_params=[Parameter("image_uid", image_uid)]
+        )
+    else:
+        image_uid = imagerepo.insert_image(full_path, md5)
+
     if not any(results):
         output(f"No valid results found for {file_name}.")
         return
@@ -137,7 +198,7 @@ def process_results(full_path, file_name, md5, response, high_threshold, low_thr
                 width, height = image_data["dimensions"]
                 post = danAPI.get_post(result.data.dan_id)
                 if ((width+height) * .95) > (post["image_width"] + post["image_height"]):
-                    output(f"Danbooru resolution smaller, keeping {file_name}.", msg_status.Warning)
+                    output(f"{result.data.dan_id} resolution smaller, keeping {file_name}.", msg_status.Warning)
                 else:
                     add_favorite(full_path, file_name, result.data.dan_id, result.header.similarity)
                     # Remove record as well since we won't need it.
@@ -152,39 +213,32 @@ def process_results(full_path, file_name, md5, response, high_threshold, low_thr
             output(f"{file_name} didn't meet similarity quota: {result.header.similarity}%, added record.")
 
 
-def add_to_danbooru(directory:str, recursive:bool, high_threshold:int, low_threshold:int, schedule:bool):
+
+def full_scan(directory:str, recursive:bool, high_threshold:int, low_threshold:int, schedule:bool):
     db_bitmask = int(saucenao.API.DBMask.index_danbooru)
     sauceAPI = saucenao.API(db_bitmask, low_threshold)
-
-    all_files: list[str] = []
-    if recursive: 
-        all_files = [os.path.join(dirpath, f) for dirpath, _, files in os.walk(directory) for f in files]
-    else:
-        all_files = os.listdir(directory)
     
     try:
         create_log()
-        for full_path in all_files:
-            if skip_file(full_path):
+        for full_path in get_files(directory, recursive):
+            # To make this faster, skip checking the md5 until we need to.
+            if not valid_file(full_path):
                 continue
 
             file_name = os.path.split(full_path)[1]
             with open(full_path, "rb") as file:
                 md5 = hashlib.md5(file.read()).hexdigest()
 
-            # Check DB to ensure image isn't a duplicate.
-            md5_response = imagerepo.check_existing_file(md5, full_path)
-            match md5_response["status"]:
-                case 1: # Duplicate
-                    output(md5_response["msg"], msg_status.Warning)    
-                    os.remove(full_path)
-                    continue
-                case 2: # Renamed/Moved
-                    output(md5_response["msg"], msg_status.Warning)    
-                    continue
+            # Skip if file already in DB
+            if is_existing(full_path, md5):
+                continue
                 
             # Saucenao has a 100 daily search limit, but Dan doesn't. We can save searches by checking the image's md5 on Dan.
-            if not check_danbooru(full_path, file_name, md5):
+            dan_found = False
+            if not md5_checked(full_path):
+                dan_found = check_danbooru(full_path, file_name, md5)
+
+            if not dan_found:
                 api_response = sauceAPI.send_request(full_path)
                 response = api_response["response"]
                 image_data = api_response["image"]
