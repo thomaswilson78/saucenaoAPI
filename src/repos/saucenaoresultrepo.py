@@ -20,7 +20,7 @@ def insert_result(image_uid:int, site_flag:int, illust_id:int, similarity:float)
 
 
 def update_results(update_params:list[Parameter], where_params:list[Parameter]):
-    query = f"UPDATE Images SET {','.join(f'{p.col_name} = ?' for p in update_params)}"
+    query = f"UPDATE Saucenao_Results SET {','.join(f'{p.col_name} = ?' for p in update_params)}"
     param_list = [p.value for p in update_params]
     where_set = repohelper.get_where(" WHERE 1=1", where_params)
     query += where_set[0]
