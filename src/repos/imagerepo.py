@@ -9,6 +9,7 @@ from enum import IntEnum
 class image_status(IntEnum):
     full_scan = 1
     md5_only_scan = 2
+    banned_artist = 3
     
     
 def get_images(params:list[Parameter] = ()) -> list[Image]:

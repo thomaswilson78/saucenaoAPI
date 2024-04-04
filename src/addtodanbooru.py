@@ -6,7 +6,6 @@ import datetime
 from enum import Enum
 from colorama import Fore, Style
 from src.database.imgdatabase import Parameter
-from src.modules.imgmodule import Image
 from src.saucenao import Result
 import src.repos.imagerepo as imagerepo
 import src.repos.saucenaoresultrepo as saucenaoresultrepo
@@ -29,8 +28,12 @@ log_name = None
 
 # For people that generate AI art or art specifically saved to a collection for favorite artist.
 blacklisted_terms = [
-    "AI Art",
-    "Artist Collections",
+    "AI Art/",
+    "Artist Collections/",
+    "3DPD/",
+    "wtflol/",
+    "IRL/",
+    "_Infinite Fusion/",
     "8co28",
     "AIart_Fring",
     "HoDaRaKe",
@@ -45,6 +48,7 @@ blacklisted_terms = [
     "tocotoco365",
     "truckkunart",
     "truckkunsfw",
+    "_generated_by_"
 ]
 
 
@@ -53,6 +57,11 @@ class msg_status(Enum):
     Warning = 1
     Error = 2
 
+
+class dan_status(Enum):
+    Not_Found = 0
+    Found = 1
+    Banned = 2
 
 
 def get_files(directory:str, recursive:bool) -> list[str]:
@@ -126,14 +135,30 @@ def output(msg:str, status:msg_status = msg_status.OK):
     append_log(msg)
 
 
-def add_favorite(full_path:str, file_name:str, illust_id:int, similarity:int = None):
+def add_image(full_path, md5, status_code:imagerepo.image_status) -> int:
+    image_uid:int = None
+    # Check if image record already created via md5 search, otherwise added new image record (md5 is unique so should only be 1)
+    image = imagerepo.get_images([Parameter("md5", md5)])
+    if any(image):
+        image_uid = image.pop().image_uid 
+        imagerepo.update_image(
+            update_params=[Parameter("status", status_code)],
+            where_params=[Parameter("image_uid", image_uid)]
+        )
+    else:
+        image_uid = imagerepo.insert_image(full_path, md5, status_code)
+
+    return image_uid
+
+
+def add_favorite(full_path:str, illust_id:int, similarity:int = None):
     danAPI.add_favorite(illust_id)
-    output(f"Match found ({similarity or 'via md5'}%): {file_name} favorited to {illust_id}, file removed.")
+    output(f"Match found ({similarity or 'via md5'}%): {full_path} favorited to {illust_id}, file removed.")
     if not IS_DEBUG:
         os.remove(full_path)
 
 
-def check_danbooru(full_path:str, file_name:str, md5:str) -> bool:
+def check_danbooru(full_path:str, md5:str) -> dan_status:
     """Checks file for MD5 match on Danbooru."""
     # {"md5": f"{img_md5}"} <- NOTE: DON'T USE. No results gives 404 error. "tags" is safer, returns empty if nothing found.
     params = {"tags": f"md5:{md5}"}
@@ -141,10 +166,14 @@ def check_danbooru(full_path:str, file_name:str, md5:str) -> bool:
     json_data = danAPI.get_posts(params)
     if any(json_data):
         for item in json_data:
-            add_favorite(full_path, file_name, item["id"])
-        return True
+            if item["is_banned"]:
+                output(f"Danbooru lists {item['id']} as made by a banned artist. Keeping {full_path}", msg_status.Warning)
+                add_image(full_path, md5, imagerepo.image_status.banned_artist)
+                return dan_status.Banned
+            add_favorite(full_path, item["id"])
+            return dan_status.Found
     
-    return False
+    return dan_status.Not_Found
 
 
 def md5_checked(full_path):
@@ -167,28 +196,18 @@ def md5_scan(directory:str, recursive:bool):
                 
             if not check_danbooru(full_path, file_name, md5):
                 print(f"No match found for {file_name}")
-                imagerepo.insert_image(full_path, md5, imagerepo.image_status.md5_only_scan)
+                add_image(full_path, md5, imagerepo.image_status.md5_only_scan)
 
 
-def process_results(full_path, file_name, md5, response, high_threshold, low_threshold, db_bitmask, image_data):
+def process_results(full_path, md5, response, high_threshold, low_threshold, db_bitmask, image_data):
     """summary: Extract file data and send to saucenao REST API. Log low similarity results to database."""
 
     # Get a list of all results above the minimum threshold.
     results:list[Result] = list(filter(lambda r: r.header.similarity > low_threshold, [Result(db_bitmask, r) for r in response["results"]]))
-    # Get image if already searched before via md5, otherwise added new image record (md5 is unique so should only be 1)
-    image = imagerepo.get_images([Parameter("md5", md5)])
-    if any(image):
-        image_uid = image.pop().image_uid 
-        # Need to update to full scan status
-        imagerepo.update_image(
-            update_params=[Parameter("status", 1)],
-            where_params=[Parameter("image_uid", image_uid)]
-        )
-    else:
-        image_uid = imagerepo.insert_image(full_path, md5)
+    image_uid = add_image(full_path, md5, imagerepo.image_status.full_scan)
 
     if not any(results):
-        output(f"No valid results found for {file_name}.")
+        output(f"No Match: {full_path}.")
         return
 
     for result in results:
@@ -197,10 +216,13 @@ def process_results(full_path, file_name, md5, response, high_threshold, low_thr
                 # Prevent trading down for a lower res image. Give a slight margin of 5%.
                 width, height = image_data["dimensions"]
                 post = danAPI.get_post(result.data.dan_id)
+                if post["is_banned"]:
+                    output(f"Danbooru lists {post['id']} as made by a banned artist. Keeping {full_path}", msg_status.Warning)
+                    break
                 if ((width+height) * .95) > (post["image_width"] + post["image_height"]):
-                    output(f"{result.data.dan_id} resolution smaller, keeping {file_name}.", msg_status.Warning)
+                    output(f"{result.data.dan_id} resolution smaller, keeping {full_path}.", msg_status.Warning)
                 else:
-                    add_favorite(full_path, file_name, result.data.dan_id, result.header.similarity)
+                    add_favorite(full_path, result.data.dan_id, result.header.similarity)
                     # Remove record as well since we won't need it.
                     imagerepo.delete_image(image_uid)
                     break # If image is determined a good enough match, move on.
@@ -210,7 +232,7 @@ def process_results(full_path, file_name, md5, response, high_threshold, low_thr
         # Anything lower will need to be double checked via 'check-results'.
         else:
             saucenaoresultrepo.insert_result(image_uid, saucenao.API.DBMask.index_danbooru, result.data.dan_id, result.header.similarity)
-            output(f"{file_name} didn't meet similarity quota: {result.header.similarity}%, added record.")
+            output(f"Low Match ({result.header.similarity}%): {full_path}, added record.")
 
 
 
@@ -225,7 +247,6 @@ def full_scan(directory:str, recursive:bool, high_threshold:int, low_threshold:i
             if not valid_file(full_path):
                 continue
 
-            file_name = os.path.split(full_path)[1]
             with open(full_path, "rb") as file:
                 md5 = hashlib.md5(file.read()).hexdigest()
 
@@ -234,11 +255,14 @@ def full_scan(directory:str, recursive:bool, high_threshold:int, low_threshold:i
                 continue
                 
             # Saucenao has a 100 daily search limit, but Dan doesn't. We can save searches by checking the image's md5 on Dan.
-            dan_found = False
+            status = dan_status.Not_Found
             if not md5_checked(full_path):
-                dan_found = check_danbooru(full_path, file_name, md5)
+                status = check_danbooru(full_path, md5)
+            
+            if status == dan_status.Banned:
+                continue
 
-            if not dan_found:
+            if status == dan_status.Not_Found:
                 api_response = sauceAPI.send_request(full_path)
                 response = api_response["response"]
                 image_data = api_response["image"]
@@ -247,7 +271,7 @@ def full_scan(directory:str, recursive:bool, high_threshold:int, low_threshold:i
                     long_remaining = response["header"]["long_remaining"]
                     print(f"Remaining Searches 30s|24h: {short_remaining}|{long_remaining}")
 
-                    process_results(full_path, file_name, md5, response, high_threshold, low_threshold, db_bitmask, image_data)
+                    process_results(full_path, md5, response, high_threshold, low_threshold, db_bitmask, image_data)
 
                     # Check remaining searches.
                     if long_remaining <= 0:
@@ -258,7 +282,7 @@ def full_scan(directory:str, recursive:bool, high_threshold:int, low_threshold:i
                         time.sleep(25)
                 else:
                     imagerepo.insert_image(full_path, md5)
-                    output(f"No results found for {file_name}.")
+                    output(f"No Match: {full_path}.")
         # If we've gotten through all the files, write a log record to indication as such.
         else:
             output(f"All files scanned for {directory}")

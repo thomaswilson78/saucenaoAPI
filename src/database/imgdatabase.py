@@ -114,7 +114,8 @@ class __database():
             self.execute_change("""
                 INSERT INTO Status_Images VALUES
                 (1, "Full Scan"),
-                (2, "MD5 Only Scan")
+                (2, "MD5 Only Scan"),
+                (3, "Banned Artist")
             """)
 
         self.execute_nonquery("""
