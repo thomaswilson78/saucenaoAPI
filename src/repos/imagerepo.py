@@ -30,11 +30,6 @@ def update_image(update_params:list[Parameter], where_params:list[Parameter]):
     imgdatabase.db_handler.execute_change(query, param_list)
 
 
-#def update_image(image_uid, file_name, full_path, status):
-#    file = os.path.splitext(file_name)[0]
-#    imgdatabase.db_handler.execute_change("UPDATE Images SET file_name=?, full_path=?, status=? WHERE image_uid=?", [file, full_path, status, image_uid])
-
-
 def delete_image(image_uid):
     imgdatabase.db_handler.execute_change("DELETE FROM Images WHERE image_uid=?", [image_uid])
 

@@ -4,7 +4,7 @@ from crontab import CronTab
 
 
 def format_command(directory:str):
-    return f"cd ~/pCloudDrive/repos/saucenao ; python main.py add-to-danbooru {directory} -r -s"
+    return f"cd ~/pCloudDrive/repos/saucenao ; python -u main.py add-to-danbooru {directory} -r -s"
 
 
 def update_crontab_job(directory:str):

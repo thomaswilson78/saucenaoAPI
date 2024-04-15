@@ -27,29 +27,7 @@ log_name = None
 
 
 # For people that generate AI art or art specifically saved to a collection for favorite artist.
-blacklisted_terms = [
-    "AI Art/",
-    "Artist Collections/",
-    "3DPD/",
-    "wtflol/",
-    "IRL/",
-    "_Infinite Fusion/",
-    "8co28",
-    "AIart_Fring",
-    "HoDaRaKe",
-    "Shoppy_0909",
-    "amoria_ffxiv",
-    "eatsleep1111",
-    "iolite_aoto",
-    "lilydisease",
-    "pon_pon_pon_ai",
-    "sagawa_gawa",
-    "sayaka_aiart",
-    "tocotoco365",
-    "truckkunart",
-    "truckkunsfw",
-    "_generated_by_"
-]
+blacklisted_terms = saucenaoconfig.config.settings["BLACKLISTED_TERMS"]
 
 
 class msg_status(Enum):
