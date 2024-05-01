@@ -12,61 +12,48 @@ class __database():
         self.init_setup()
 
 
-    def create_connection(self):
-        return sqlite3.connect(self.db_instance)
-
-
     def execute_nonquery(self, query, params = ()) -> bool:
         with sqlite3.connect(self.db_instance) as conn:
             try:
-                conn = self.create_connection()
                 cursor = conn.cursor()
                 cursor.execute("PRAGMA foreign_keys=ON;")
                 cursor.execute(query, params)
             except Error as e:
                 raise Exception(f"Error:{e}\nQuery:{query}\nParmas:{params}")
-            finally:
-                if conn:
-                    conn.close()
                     
             return True
 
                 
     def execute_query(self, query, params = ()) -> list[any]:
-        results = None
-        try:
-            conn = self.create_connection()
-            conn.row_factory = sqlite3.Row
-            cursor = conn.cursor()
-            cursor.execute("PRAGMA foreign_keys=ON;")
-            cursor.execute(query, params)
-            results = cursor.fetchall()
-        except Error as e:
-            raise Exception(f"Error:{e}\nQuery:{query}\nParmas:{params}")
-        finally:
-            if conn:
-                conn.close()
-                
-        return results
+        with sqlite3.connect(self.db_instance) as conn:
+            results = None
+            try:
+                conn.row_factory = sqlite3.Row
+                cursor = conn.cursor()
+                cursor.execute("PRAGMA foreign_keys=ON;")
+                cursor.execute(query, params)
+                results = cursor.fetchall()
+            except Error as e:
+                raise Exception(f"Error:{e}\nQuery:{query}\nParmas:{params}")
+                    
+            return results
 
 
     def execute_change(self, query, params = ()) -> int:
-        result = None
-        try:
-            conn = self.create_connection()
-            cursor = conn.cursor()
-            cursor.execute("PRAGMA foreign_keys=ON;")
-            cursor.execute(query, params)
-            conn.commit()
-            result = cursor.lastrowid
-        except Error as e:
-            conn.rollback()
-            raise Exception(f"Error:{e}\nQuery:{query}\nParmas:{params}")
-        finally:
-            if conn:
-                conn.close()
-                
-        return result
+        with sqlite3.connect(self.db_instance) as conn:
+            results = None
+            try:
+                cursor = conn.cursor()
+                cursor.execute("PRAGMA foreign_keys=ON;")
+                cursor.execute(query, params)
+                conn.commit()
+                result = cursor.lastrowid
+            except Error as e:
+                if conn:
+                    conn.rollback()
+                raise Exception(f"Error:{e}\nQuery:{query}\nParmas:{params}")
+                    
+            return result
 
 
     def execute_mass_transaction(self, queries:str | list[str], params = ()):
@@ -75,25 +62,24 @@ class __database():
         Args:
             queries (list[str]): List of all queries to be provided
         """
-        try:
-            conn = self.create_connection()
-            cursor = conn.cursor()
-            cursor.execute("PRAGMA foreign_keys=ON;")
-            cursor.execute("BEGIN TRANSACTION")
+        with sqlite3.connect(self.db_instance) as conn:
+            try:
+                cursor = conn.cursor()
+                cursor.execute("PRAGMA foreign_keys=ON;")
+                cursor.execute("BEGIN TRANSACTION")
 
-            if queries is str:
-                cursor.executemany(queries, params)
-            else:
-                for query in queries:
-                    cursor.execute(query, params)
+                if queries is str:
+                    cursor.executemany(queries, params)
+                else:
+                    for query in queries:
+                        cursor.execute(query, params)
 
-            cursor.execute("END TRANSACTION")
-            conn.commit()
-        except Error as e:
-            raise Exception(f"Error:{e}\nQuery:{query}\nParmas:{params}")
-        finally:
-            if conn:
-                conn.close()
+                cursor.execute("END TRANSACTION")
+                conn.commit()
+            except Error as e:
+                if conn:
+                    conn.rollback()
+                raise Exception(f"Error:{e}\nQuery:{query}\nParmas:{params}")
 
 
     def init_setup(self):
