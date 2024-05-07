@@ -55,8 +55,12 @@ def check_existing_file(full_path, md5):
                 response["msg"] = f"{full_path} is a duplicate file. File with same MD5 already exists: {image.full_path}" 
             # Otherwise the file has been moved or renamed, update the database to reflect.
             else:
+                path = os.path.dirname(full_path)
                 response["status"] = 2 
-                response["msg"] = f"{full_path} has been moved/renamed. Updated database to reflect change." 
-                update_image(image.image_uid, file_name, full_path)
+                response["msg"] = f"""File has been moved/renamed.\nOriginal Path: {image.full_path}\n     New Path: {full_path}"""
+                update_image(
+                    update_params=[Parameter("file_name", file_name), Parameter("full_path", full_path)],
+                    where_params=[Parameter("image_uid", image.image_uid)]
+                )
                 
     return response
