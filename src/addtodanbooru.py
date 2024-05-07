@@ -20,8 +20,6 @@ elif sys.platform == "win32":
 
 import danbooru
 
-IS_DEBUG = hasattr(sys, 'gettrace') and sys.gettrace() is not None 
-
 danAPI = danbooru.API()
 log_name = None
 
@@ -132,7 +130,7 @@ def add_image(full_path, md5, status_code:imagerepo.image_status) -> int:
 def add_favorite(full_path:str, illust_id:int, similarity:int = None):
     danAPI.add_favorite(illust_id)
     output(f"Match found ({similarity or 'via md5'}%): {full_path} favorited to {illust_id}, file removed.")
-    if not IS_DEBUG:
+    if not saucenaoconfig.IS_DEBUG:
         os.remove(full_path)
 
 
