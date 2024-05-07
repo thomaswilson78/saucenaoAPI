@@ -36,7 +36,8 @@ def display_results(image:Image, results:list[Saucenao_Result]):
 
     for i in range(0, len(results)):
         result = results[i]
-        print(f"{Fore.LIGHTMAGENTA_EX}{result.site_id} ({result.similarity}%) [{i}] {Fore.LIGHTMAGENTA_EX}{Style.RESET_ALL}")
+        post = danAPI.get_post(result.site_id)
+        print(f"{Fore.LIGHTMAGENTA_EX}{result.site_id} ({result.similarity}%) {post['image_width']} x {post['image_height']}  [{i}] {Fore.LIGHTMAGENTA_EX}{Style.RESET_ALL}")
         webbrowser.get(config.settings["DEFAULT_BROWSER"]).open(f"{danAPI.hostname}/posts/{result.site_id}", new = 2)
 
     try:
