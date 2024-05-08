@@ -4,7 +4,7 @@ import sys
 import codecs
 import click
 import src.checkresults as checkresults
-import src.addtodanbooru as addtodanbooru
+import src.saucenaoscan as saucenaoscan
 import src.saucenaoconfig as saucenaoconfig
 
 config = saucenaoconfig.config
@@ -64,19 +64,19 @@ def check_results(threshold:float):
               help="Schedules a crontab task to run.")
 @click.option("-m", "--md5_only", is_flag=True, default=False, show_default=True, 
               help="Only scan files via MD5. This only searches Danbooru and will not be limited to daily searches by Saucenao.")
-def add_to_danbooru(directory:str, recursive:bool, high_threshold:int, low_threshold:int, schedule:bool, md5_only:bool):
+def scan(directory:str, recursive:bool, high_threshold:int, low_threshold:int, schedule:bool, md5_only:bool):
     """
     Connects to the Saucenao web API to look at specified file(s) and determine if they match. If they match, will favorite the image
     on Danbooru then remove the file from the local machine.
     """
     if md5_only:
-        addtodanbooru.md5_scan(directory, recursive)
+        saucenaoscan.md5_scan(directory, recursive)
     else:
-        addtodanbooru.full_scan(directory, recursive, high_threshold, low_threshold, schedule)
+        saucenaoscan.full_scan(directory, recursive, high_threshold, low_threshold, schedule)
 
 
 commands.add_command(check_results)
-commands.add_command(add_to_danbooru)
+commands.add_command(scan)
 
 
 if __name__ == "__main__":

@@ -30,7 +30,7 @@ blacklisted_terms = saucenaoconfig.config.settings["BLACKLISTED_TERMS"]
 
 class msg_status(Enum):
     OK = 0
-    Warning = 1
+    Notice = 1
     Error = 2
 
 
@@ -62,12 +62,12 @@ def is_existing(full_path:str, md5:str) -> bool:
     """Check DB to ensure image isn't a duplicate."""
     md5_response = imagerepo.check_existing_file(full_path, md5)
     match md5_response["status"]:
-        case 1: # Duplicate
-            output(md5_response["msg"], msg_status.Warning)    
+        case imagerepo.file_status.Duplicate:
+            output(md5_response["msg"], msg_status.Notice)    
             if not saucenaoconfig.IS_DEBUG:
                 os.remove(full_path)
-        case 2: # Renamed/Moved
-            output(md5_response["msg"], msg_status.Warning)    
+        case imagerepo.file_status.Changed: 
+            output(md5_response["msg"], msg_status.Notice)    
     
     return md5_response["status"] > 0
 
@@ -84,13 +84,13 @@ def create_log():
     path = os.path.expanduser("~/_saucenao_logs/")
     if saucenaoconfig.IS_DEBUG:
         path += "TEST/"
-    log_name = f"{path}saucenao_{formated_time}.log"
+    log_name = os.path.join(path, f"saucenao_{formated_time}.log")
 
     if not os.path.exists(f"log_name"):
         if not os.path.exists(f"{path}"):
             os.makedirs(f"{path}")
         with open(f"{log_name}", "+w") as f:
-            f.write("")
+            f.write("") # Just to make sure we create the file
 
 
 def append_log(msg):
@@ -102,16 +102,16 @@ def append_log(msg):
 def output(msg:str, status:msg_status = msg_status.OK):
     color = Fore.WHITE
     match status:
-        case msg_status.Warning:
+        case msg_status.Notice:
             color = Fore.YELLOW
         case msg_status.Error:
             color = Fore.RED
             
-    print(f"{color}{(msg if status != msg_status.Error else f'ERROR {msg}')}{Style.RESET_ALL}") 
+    print(f"{color}{(msg if status != msg_status.Error else f'ERROR: {msg}')}{Style.RESET_ALL}") 
     append_log(msg)
 
 
-def add_image(full_path, md5, status_code:imagerepo.image_status) -> int:
+def add_image(full_path, md5, status_code:imagerepo.image_scan_status) -> int:
     image_uid:int = None
     # Check if image record already created via md5 search, otherwise added new image record (md5 is unique so should only be 1)
     image = imagerepo.get_images([Parameter("md5", md5)])
@@ -143,8 +143,8 @@ def check_danbooru(full_path:str, md5:str) -> dan_status:
     if any(json_data):
         for item in json_data:
             if item["is_banned"]:
-                output(f"Danbooru lists {item['id']} as made by a banned artist. Keeping {full_path}", msg_status.Warning)
-                add_image(full_path, md5, imagerepo.image_status.banned_artist)
+                output(f"Danbooru lists {item['id']} as made by a banned artist. Keeping {full_path}", msg_status.Notice)
+                add_image(full_path, md5, imagerepo.image_scan_status.banned_artist)
                 return dan_status.Banned
             add_favorite(full_path, item["id"])
             return dan_status.Found
@@ -172,7 +172,7 @@ def md5_scan(directory:str, recursive:bool):
                 
             if not check_danbooru(full_path, file_name, md5):
                 print(f"No match found for {file_name}")
-                add_image(full_path, md5, imagerepo.image_status.md5_only_scan)
+                add_image(full_path, md5, imagerepo.image_scan_status.md5_only_scan)
 
 
 def process_results(full_path, md5, response, high_threshold, low_threshold, db_bitmask, image_data):
@@ -180,7 +180,7 @@ def process_results(full_path, md5, response, high_threshold, low_threshold, db_
 
     # Get a list of all results above the minimum threshold.
     results:list[Result] = list(filter(lambda r: r.header.similarity > low_threshold, [Result(db_bitmask, r) for r in response["results"]]))
-    image_uid = add_image(full_path, md5, imagerepo.image_status.full_scan)
+    image_uid = add_image(full_path, md5, imagerepo.image_scan_status.full_scan)
 
     if not any(results):
         output(f"No Match: {full_path}.")
@@ -193,10 +193,10 @@ def process_results(full_path, md5, response, high_threshold, low_threshold, db_
                 width, height = image_data["dimensions"]
                 post = danAPI.get_post(result.data.dan_id)
                 if post["is_banned"]:
-                    output(f"Danbooru lists {post['id']} as made by a banned artist. Keeping {full_path}", msg_status.Warning)
+                    output(f"Danbooru lists {post['id']} as made by a banned artist. Keeping {full_path}", msg_status.Notice)
                     break
                 if ((width+height) * .95) > (post["image_width"] + post["image_height"]):
-                    output(f"{result.data.dan_id} resolution smaller, keeping {full_path}.", msg_status.Warning)
+                    output(f"{result.data.dan_id} resolution smaller, keeping {full_path}.", msg_status.Notice)
                 else:
                     add_favorite(full_path, result.data.dan_id, result.header.similarity)
                     # Remove record as well since we won't need it.
@@ -211,8 +211,9 @@ def process_results(full_path, md5, response, high_threshold, low_threshold, db_
             output(f"Low Match ({result.header.similarity}%): {full_path}, added record.")
 
 
-
+# NOTE: As of now this only supports Danbooru. Unlikely I'll ever add support for other sites.
 def full_scan(directory:str, recursive:bool, high_threshold:int, low_threshold:int, schedule:bool):
+    """Scans Saucenao for results and automatically favorites them."""
     db_bitmask = int(saucenao.API.DBMask.index_danbooru)
     sauceAPI = saucenao.API(db_bitmask, low_threshold)
     

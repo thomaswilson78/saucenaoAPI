@@ -6,10 +6,16 @@ from src.modules.imgmodule import Image
 from enum import IntEnum
 
 
-class image_status(IntEnum):
+class image_scan_status(IntEnum):
     full_scan = 1
     md5_only_scan = 2
     banned_artist = 3
+
+
+class file_status(IntEnum):
+    OK = 0,
+    Duplicate = 1,
+    Changed = 2
     
     
 def get_images(params:list[Parameter] = ()) -> list[Image]:
@@ -34,7 +40,7 @@ def delete_image(image_uid):
     imgdatabase.db_handler.execute_change("DELETE FROM Images WHERE image_uid=?", [image_uid])
 
 
-def insert_image(full_path:str, md5:str, status:image_status = image_status.full_scan) -> int | None:
+def insert_image(full_path:str, md5:str, status:image_scan_status = image_scan_status.full_scan) -> int | None:
     file_name, ext = os.path.splitext(os.path.split(full_path)[1])
     img_qry, img_params = ("INSERT INTO Images (full_path, file_name, ext, md5, status) VALUES (?, ?, ?, ?, ?);", [full_path, file_name, ext, md5, status])
     return imgdatabase.db_handler.execute_change(img_qry, img_params)
@@ -42,7 +48,7 @@ def insert_image(full_path:str, md5:str, status:image_status = image_status.full
 
 def check_existing_file(full_path, md5):
     """Check the MD5 value to ensure the file hasn't been moved, renamed, or is a duplicate."""
-    response = {"status": 0, "msg": None} 
+    response = {"status": file_status.OK, "msg": None} 
     images = get_images([Parameter("md5", md5)])
     if any(images):
         file_name = os.path.splitext(os.path.basename(full_path))[0]
@@ -51,12 +57,12 @@ def check_existing_file(full_path, md5):
         if full_path != image.full_path:
             # Original still exists confirming this is a dupe.
             if os.path.exists(image.full_path):
-                response["status"] = 1 
+                response["status"] = file_status.Duplicate 
                 response["msg"] = f"{full_path} is a duplicate file. File with same MD5 already exists: {image.full_path}" 
             # Otherwise the file has been moved or renamed, update the database to reflect.
             else:
                 path = os.path.dirname(full_path)
-                response["status"] = 2 
+                response["status"] = file_status.Changed
                 response["msg"] = f"""File has been moved/renamed.\nOriginal Path: {image.full_path}\n     New Path: {full_path}"""
                 update_image(
                     update_params=[Parameter("file_name", file_name), Parameter("full_path", full_path)],
