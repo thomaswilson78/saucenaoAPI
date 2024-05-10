@@ -81,10 +81,10 @@ def check_low_threshold_results(threshold:float):
                 Parameter("similarity", threshold, Parameter.Condition.GRTOREQUAL),
                 Parameter("status", 0),
             ])
+
             if any(results_list):
                 print(f"{Fore.LIGHTGREEN_EX}{i.file_name+i.ext} {Fore.LIGHTMAGENTA_EX}{Style.RESET_ALL}")
                 display_results(i, results_list)
-
     except Exception as e:
         print(e)
 

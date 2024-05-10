@@ -60,7 +60,7 @@ class API(object):
         index_mangadex = auto()
 
 
-    def __init__(self, dbmask:int, minsim:int = 90, output_type:Output_Type = Output_Type.json):
+    def __init__(self, dbmask:int, minsim:int = saucenaoconfig.config.settings["LOW_THRESHOLD"], output_type:Output_Type = Output_Type.json):
         self.dbmask = dbmask
         self.minsim = minsim
         self.output_type = output_type
@@ -80,15 +80,13 @@ class API(object):
     def __get_image_data(fname):
         """Extracts the image's bytes and adds it as a parameter to be used in the request."""
         ImageFile.LOAD_TRUNCATED_IMAGES = True
-        image = Image.open(fname)
-        image = image.convert('RGB')
-        dimensions = image.size
-        image.thumbnail(API.__THUMBSIZE, resample=Image.ANTIALIAS)
-        imageData = io.BytesIO()
-        image.save(imageData,format='PNG')
-        file = {'file': ("image.png", imageData.getvalue())}
-        imageData.close()
-        image.close()
+        with Image.open(fname) as image:
+          image = image.convert('RGB')
+          dimensions = image.size
+          image.thumbnail(API.__THUMBSIZE, resample=Image.ANTIALIAS)
+          with io.BytesIO() as imageData:
+            image.save(imageData,format='PNG')
+            file = {'file': ("image.png", imageData.getvalue())}
         
         return (file, dimensions)
     
@@ -103,100 +101,17 @@ class API(object):
     
     
     def __test_response(self): 
-        """For debugging purposes, send a simulated response to prevent usage of daily searches."""
+        """For debugging purposes, returns a simulated JSON expected from Saucenao."""
+        # Since the search limit is so tight this can be used in place as well as giving
+        # multiple scenarios to work with.
 
-        # Provides 3 results: above 90, between 90-60, and below 60.
-        return """{
-                  "header": {
-                    "user_id": "117582",
-                    "account_type": "1",
-                    "short_limit": "4",
-                    "long_limit": "100",
-                    "long_remaining": 90,
-                    "short_remaining": 3,
-                    "status": 0,
-                    "results_requested": "8",
-                    "index": {
-                      "9": {
-                        "status": 0,
-                        "parent_id": 9,
-                        "id": 9,
-                        "results": 8
-                      }
-                    },
-                    "search_depth": "128",
-                    "minimum_similarity": 0,
-                    "query_image_display": "\\/userdata\\/4u6TvvoH6.png.png",
-                    "query_image": "4u6TvvoH6.png",
-                    "results_returned": 8
-                  },
-                  "results": [
-                    {
-                      "header": {
-                        "similarity": "96.22",
-                        "thumbnail": "https:\\/\\/img3.saucenao.com\\/booru\\/f\\/6\\/f603559b53625c48d47e5cba07cb380a_0.jpg?auth=AtyVEePg7VbVaI_Rx0uX9A\\u0026exp=1710874800",
-                        "index_id": 9,
-                        "index_name": "Index #9: Danbooru - f603559b53625c48d47e5cba07cb380a_0.jpg",
-                        "dupes": 0,
-                        "hidden": 0
-                      },
-                      "data": {
-                        "ext_urls": [
-                          "https:\\/\\/danbooru.donmai.us\\/post\\/show\\/4701825"
-                        ],
-                        "danbooru_id": 2582414,
-                        "creator": "kimblee",
-                        "material": "granblue fantasy",
-                        "characters": "andira (granblue fantasy), andira (summer) (granblue fantasy)",
-                        "source": "https:\\/\\/i.pximg.net\\/img-original\\/img\\/2021\\/08\\/14\\/00\\/00\\/13\\/91953701"
-                      }
-                    },
-                    {
-                      "header": {
-                        "similarity": "78.84",
-                        "thumbnail": "https:\\/\\/img3.saucenao.com\\/booru\\/b\\/5\\/b584e1c1f46338cd06be1c238c80955e_0.jpg?auth=ItKA4sEO2vFBWCQkZKSNIw\\u0026exp=1710874800",
-                        "index_id": 9,
-                        "index_name": "Index #9: Danbooru - b584e1c1f46338cd06be1c238c80955e_0.jpg",
-                        "dupes": 0,
-                        "hidden": 0
-                      },
-                      "data": {
-                        "ext_urls": [
-                          "https:\\/\\/danbooru.donmai.us\\/post\\/show\\/2710323"
-                        ],
-                        "danbooru_id": 2710323,
-                        "creator": "kanachirou",
-                        "material": "kantai collection",
-                        "characters": "prinz eugen (kancolle)",
-                        "source": "https:\\/\\/i.pximg.net\\/img-original\\/img\\/2017\\/05\\/02\\/11\\/40\\/34\\/62691361"
-                      }
-                    },
-                    {
-                      "header": {
-                        "similarity": "52.72",
-                        "thumbnail": "https:\\/\\/img3.saucenao.com\\/booru\\/8\\/8\\/88928dbe56a45a736233dba64f555707_0.jpg?auth=31A_R1-QK5r88ve2IyEE8w\\u0026exp=1710874800",
-                        "index_id": 9,
-                        "index_name": "Index #9: Danbooru - 88928dbe56a45a736233dba64f555707_0.jpg",
-                        "dupes": 0,
-                        "hidden": 0
-                      },
-                      "data": {
-                        "ext_urls": [
-                          "https:\\/\\/danbooru.donmai.us\\/post\\/show\\/6179125"
-                        ],
-                        "danbooru_id": 6179125,
-                        "creator": "nashi chai1346",
-                        "material": "genshin impact, indie virtual youtuber",
-                        "characters": "nilou (genshin impact), nini yuuna",
-                        "source": "https:\\/\\/twitter.com\\/nashi_tw\\/status\\/1581261904169021440"
-                      }
-                    }
-                  ]
-                }"""
+        # Provides 3 different results: above 92, between 92-65, and below 65.
+        return json.load(open("saucenao_sample.json"))
+
 
 
     def send_request(self, file: str, params: dict[str:any] = {}) -> dict[str:any]:
-        """Sends request to Saucenao's API and returns response.
+        """Sends image to Saucenao's API and returns any matches found in response.
 
         file: Image file that will be extracted and sent.
         params: Additional parameters to include in search.
@@ -207,7 +122,7 @@ class API(object):
         params = self.__set_params(params)
 
         if saucenaoconfig.IS_DEBUG:
-            response["response"] = json.JSONDecoder(object_pairs_hook=OrderedDict).decode(self.__test_response())
+            response["response"] = self.__test_response()
         else:
             r = requests.post("http://saucenao.com/search.php", params=params, files=file)
 
