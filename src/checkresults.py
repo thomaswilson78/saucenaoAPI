@@ -1,6 +1,7 @@
 import os
 import sys
 import webbrowser
+from PIL import Image as PILImage
 from colorama import Fore, Style
 import src.saucenaoconfig as saucenaoconfig
 from src.modules.imgmodule import Image, Saucenao_Result
@@ -83,7 +84,8 @@ def check_low_threshold_results(threshold:float):
             ])
 
             if any(results_list):
-                print(f"{Fore.LIGHTGREEN_EX}{i.file_name+i.ext} {Fore.LIGHTMAGENTA_EX}{Style.RESET_ALL}")
+                image = PILImage.open(i.full_path)
+                print(f"{Fore.LIGHTGREEN_EX}{i.file_name+i.ext} {image.width} x {image.height}{Fore.LIGHTMAGENTA_EX}{Style.RESET_ALL}")
                 display_results(i, results_list)
     except Exception as e:
         print(e)
