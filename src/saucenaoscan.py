@@ -3,7 +3,11 @@ import sys
 import time
 import hashlib
 import datetime
+import json
+from collections import OrderedDict
 from enum import Enum
+from PIL import Image
+from requests import Response
 from colorama import Fore, Style
 from src.database.imgdatabase import Parameter
 from src.saucenao import Result
@@ -99,7 +103,7 @@ def append_log(msg):
             f.write(f"{msg}\n")
 
 
-def output(msg:str, status:msg_status = msg_status.OK):
+def output(msg:str, status:msg_status = msg_status.OK, console_only:bool = False):
     color = Fore.WHITE
     match status:
         case msg_status.Notice:
@@ -108,7 +112,8 @@ def output(msg:str, status:msg_status = msg_status.OK):
             color = Fore.RED
             
     print(f"{color}{(msg if status != msg_status.Error else f'ERROR: {msg}')}{Style.RESET_ALL}") 
-    append_log(msg)
+    if console_only == False:
+        append_log(msg)
 
 
 def add_image(full_path, md5, status_code:imagerepo.image_scan_status) -> int:
@@ -171,15 +176,20 @@ def md5_scan(directory:str, recursive:bool):
                 continue
                 
             if not check_danbooru(full_path, file_name, md5):
-                print(f"No match found for {file_name}")
+                output(f"No match found for {file_name}")
                 add_image(full_path, md5, imagerepo.image_scan_status.md5_only_scan)
 
 
-def process_results(full_path, md5, response, high_threshold, low_threshold, db_bitmask, image_data):
+def get_image_size(full_path):
+    with Image.open(full_path) as image:
+        return image.size
+
+
+def process_results(full_path, md5, data, high_threshold, low_threshold, db_bitmask):
     """summary: Extract file data and send to saucenao REST API. Log low similarity results to database."""
 
     # Get a list of all results above the minimum threshold.
-    results:list[Result] = list(filter(lambda r: r.header.similarity > low_threshold, [Result(db_bitmask, r) for r in response["results"]]))
+    results:list[Result] = list(filter(lambda r: r.header.similarity > low_threshold, [Result(db_bitmask, r) for r in data["results"]]))
     image_uid = add_image(full_path, md5, imagerepo.image_scan_status.full_scan)
 
     if not any(results):
@@ -189,13 +199,13 @@ def process_results(full_path, md5, response, high_threshold, low_threshold, db_
     for result in results:
         if result.header.similarity > high_threshold:
             try:
-                # Prevent trading down for a lower res image. Give a slight margin of 5%.
-                width, height = image_data["dimensions"]
+                width, height = get_image_size(full_path)
                 post = danAPI.get_post(result.data.dan_id)
                 if post["is_banned"]:
                     output(f"Danbooru lists {post['id']} as made by a banned artist. Keeping {full_path}", msg_status.Notice)
                     break
-                if ((width+height) * .95) > (post["image_width"] + post["image_height"]):
+                # Prevent trading down for a lower res image. Give a slight margin of 5%.
+                elif ((width+height) * .95) > (post["image_width"] + post["image_height"]):
                     output(f"{result.data.dan_id} resolution smaller, keeping {full_path}.", msg_status.Notice)
                 else:
                     add_favorite(full_path, result.data.dan_id, result.header.similarity)
@@ -209,6 +219,34 @@ def process_results(full_path, md5, response, high_threshold, low_threshold, db_
         else:
             saucenaoresultrepo.insert_result(image_uid, saucenao.API.DBMask.index_danbooru, result.data.dan_id, result.header.similarity)
             output(f"Low Match ({result.header.similarity}%): {full_path}, added record.")
+
+
+def attempt_send(full_path:str, sauceAPI:saucenao.API):
+    # Prevent using up searches as the daily limit is 100.
+    if saucenaoconfig.IS_DEBUG:
+        return sauceAPI.test_response()
+        
+    # If internal error, give it two trys. If it fails on the second, give up and exit the app.
+    first_pass = True
+    while True:
+        response:Response = sauceAPI.send_request(full_path)
+        match response.status_code:
+            case 200:
+                return json.JSONDecoder(object_pairs_hook=OrderedDict).decode(response.text)
+            case 403:
+                raise Exception("Incorrect or Invalid API Key!")
+            case 429:
+                raise Exception("Out of daily searches. Try again later.")
+            # 500 or 521 are internal service errors and usually are resolved by waiting a bit.
+            case  500 | 521:
+                if first_pass == True:
+                    first_pass = False
+                    output(f"First pass failed ({response.status_code}): Waiting 1 min before attempting again.", msg_status.Notice)
+                    time.sleep(60)
+                else:
+                    raise Exception(f"Status Code: {response.status_code}\nMessage: {response.reason}")
+            case _:
+                raise Exception(f"Status Code: {response.status_code}\nMessage: {response.reason}")
 
 
 # NOTE: As of now this only supports Danbooru. Unlikely I'll ever add support for other sites.
@@ -240,22 +278,20 @@ def full_scan(directory:str, recursive:bool, high_threshold:int, low_threshold:i
                 continue
 
             if status == dan_status.Not_Found:
-                api_response = sauceAPI.send_request(full_path)
-                response = api_response["response"]
-                image_data = api_response["image"]
-                if any(response) and int(response["header"]["results_returned"]) > 0:
-                    short_remaining = response["header"]["short_remaining"]
-                    long_remaining = response["header"]["long_remaining"]
-                    print(f"Remaining Searches 30s|24h: {short_remaining}|{long_remaining}")
+                api_data = attempt_send(full_path, sauceAPI)
+                if any(api_data) and int(api_data["header"]["results_returned"]) > 0:
+                    short_remaining = api_data["header"]["short_remaining"]
+                    long_remaining = api_data["header"]["long_remaining"]
+                    output(f"Remaining Searches 30s|24h: {short_remaining}|{long_remaining}", console_only=True)
 
-                    process_results(full_path, md5, response, high_threshold, low_threshold, db_bitmask, image_data)
+                    process_results(full_path, md5, api_data, high_threshold, low_threshold, db_bitmask)
 
                     # Check remaining searches.
                     if long_remaining <= 0:
                         output("Reached daily search limit, unable to process more request at this time.")
                         break
                     elif short_remaining <= 0:
-                        print("Out of searches for this 30 second period. Sleeping for 25 seconds...")
+                        output("Out of searches for this 30 second period. Sleeping for 25 seconds...", console_only=True)
                         time.sleep(25)
                 else:
                     imagerepo.insert_image(full_path, md5)

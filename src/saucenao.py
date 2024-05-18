@@ -3,9 +3,7 @@ import io
 import json
 import requests
 from PIL import Image, ImageFile
-from collections import OrderedDict
 from enum import Enum, IntFlag, auto
-import src.saucenaoconfig as saucenaoconfig
 
 
 class API(object):
@@ -60,7 +58,7 @@ class API(object):
         index_mangadex = auto()
 
 
-    def __init__(self, dbmask:int, minsim:int = saucenaoconfig.config.settings["LOW_THRESHOLD"], output_type:Output_Type = Output_Type.json):
+    def __init__(self, dbmask:int, minsim:int, output_type:Output_Type = Output_Type.json):
         self.dbmask = dbmask
         self.minsim = minsim
         self.output_type = output_type
@@ -81,14 +79,13 @@ class API(object):
         """Extracts the image's bytes and adds it as a parameter to be used in the request."""
         ImageFile.LOAD_TRUNCATED_IMAGES = True
         with Image.open(fname) as image:
-          image = image.convert('RGB')
-          dimensions = image.size
-          image.thumbnail(API.__THUMBSIZE, resample=Image.ANTIALIAS)
-          with io.BytesIO() as imageData:
-            image.save(imageData,format='PNG')
-            file = {'file': ("image.png", imageData.getvalue())}
+            image = image.convert('RGB')
+            image.thumbnail(API.__THUMBSIZE, resample=Image.ANTIALIAS)
+            with io.BytesIO() as imageData:
+                image.save(imageData,format='PNG')
+                file = {'file': ("image.png", imageData.getvalue())}
         
-        return (file, dimensions)
+        return file
     
     
     def __set_params(self, params:dict[str:any]) -> dict[str:any]:
@@ -100,7 +97,7 @@ class API(object):
         return params
     
     
-    def __test_response(self): 
+    def test_response(self): 
         """For debugging purposes, returns a simulated JSON expected from Saucenao."""
         # Since the search limit is so tight this can be used in place as well as giving
         # multiple scenarios to work with.
@@ -109,35 +106,17 @@ class API(object):
         return json.load(open("saucenao_sample.json"))
 
 
-
     def send_request(self, file: str, params: dict[str:any] = {}) -> dict[str:any]:
         """Sends image to Saucenao's API and returns any matches found in response.
 
         file: Image file that will be extracted and sent.
         params: Additional parameters to include in search.
         """
-        response = {}
-        file, dimensions = API.__get_image_data(file)
-        response["image"] = {"dimensions": dimensions}
+        
+        file = API.__get_image_data(file)
         params = self.__set_params(params)
 
-        if saucenaoconfig.IS_DEBUG:
-            response["response"] = self.__test_response()
-        else:
-            r = requests.post("http://saucenao.com/search.php", params=params, files=file)
-
-            match r.status_code:
-                case 403:
-                    raise Exception("Incorrect or Invalid API Key!")
-                case 429:
-                    raise Exception("Out of daily searches. Try again later.")
-                case 200:
-                    response["response"] = json.JSONDecoder(object_pairs_hook=OrderedDict).decode(r.text)
-                # Generally non-200 statuses are due to some other issue like overloaded servers
-                case _:
-                    raise Exception(f"Status Code: {r.status_code}\nMessage: {r.reason}")
-
-        return response
+        return requests.post("http://saucenao.com/search.php", params=params, files=file)
 
 
 class Result:
