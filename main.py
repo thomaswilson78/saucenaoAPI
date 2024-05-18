@@ -12,8 +12,8 @@ config = saucenaoconfig.config
 sys.stdout = codecs.getwriter('utf8')(sys.stdout.detach())
 sys.stderr = codecs.getwriter('utf8')(sys.stderr.detach())
 
-#########EXPAND CLICK FUNCTIONALITY##########
 # Allow an argument to subsititute for another. Good to have for reference, but no longer needed.
+#########EXPAND CLICK FUNCTIONALITY##########
 #class Mutex(click.Option):
 #    def __init__(self, *args, **kwargs):
 #        self.not_required_if:list = kwargs.pop("not_required_if")

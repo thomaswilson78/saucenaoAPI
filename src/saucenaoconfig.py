@@ -23,7 +23,7 @@ class __config:
                 "TEST_IMG_DATABASE": "./saucenaoDB_TEST.db",
                 "HIGH_THRESHOLD": 92.0,
                 "LOW_THRESHOLD": 65.0,
-                "BLACKLISTED_TERMS": []
+                "BLACKLISTED_TERMS": [ " [AI]", " [NoScan]" ]
             }
             json.dump(self.settings, open(self.__CONFIG_FILE, "w"), ensure_ascii=False, indent=4)
         else:
