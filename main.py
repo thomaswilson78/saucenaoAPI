@@ -73,6 +73,8 @@ def scan(directory:str, recursive:bool, high_threshold:int, low_threshold:int, s
         saucenaoscan.md5_scan(directory, recursive)
     else:
         saucenaoscan.full_scan(directory, recursive, high_threshold, low_threshold, schedule)
+        
+    print("Scan Complete.")
 
 
 commands.add_command(check_results)
