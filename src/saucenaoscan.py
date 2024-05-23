@@ -1,5 +1,6 @@
 import os
 import sys
+import re
 import time
 import hashlib
 import datetime
@@ -42,6 +43,7 @@ class dan_status(Enum):
     Not_Found = 0
     Found = 1
     Banned = 2
+    Invalid_Pixiv = 3
 
 
 def get_files(directory:str, recursive:bool) -> list[str]:
@@ -139,11 +141,28 @@ def add_favorite(full_path:str, illust_id:int, similarity:int = None):
         os.remove(full_path)
 
 
-def check_danbooru(full_path:str, md5:str) -> dan_status:
+def check_pixiv_id(filename:str) -> bool:
+    pixiv_id = None
+    if re.compile(".+ - .+").match(filename):
+        pixiv_id = filename[filename.rfind("- ")+1:filename.rfind("_p")]
+    else:
+        pixiv_id = filename[:filename.rfind("_p")]
+
+    params = {"tags": f"pixiv:{pixiv_id}"}
+    return any(danAPI.get_posts(params))
+
+
+def check_danbooru(full_path:str, filename:str, md5:str) -> dan_status:
     """Checks file for MD5 match on Danbooru."""
+    # If file matches Pixiv ID format (#####_p#), check if anything exists on Danbooru first. If not, skip to save saucenao searches.
+    if re.compile(".*\d+_p\d+").match(filename):
+        if not check_pixiv_id(filename):
+            output(f"No matches found on Danbooru with Pixiv ID. Skipping {full_path}", msg_status.Notice)
+            add_image(full_path, md5, imagerepo.image_scan_status.full_scan)
+            return dan_status.Invalid_Pixiv
+    
     # {"md5": f"{img_md5}"} <- NOTE: DON'T USE. No results gives 404 error. "tags" is safer, returns empty if nothing found.
     params = {"tags": f"md5:{md5}"}
-    
     json_data = danAPI.get_posts(params)
     if any(json_data):
         for item in json_data:
@@ -157,6 +176,11 @@ def check_danbooru(full_path:str, md5:str) -> dan_status:
     return dan_status.Not_Found
 
 
+def get_md5(full_path):
+    with open(full_path, "rb") as file:
+        return hashlib.md5(file.read()).hexdigest()
+
+
 def md5_checked(full_path):
     return any(imagerepo.get_images([Parameter("full_path", full_path), Parameter("status", [1,2])]))
 
@@ -167,17 +191,15 @@ def md5_scan(directory:str, recursive:bool):
         if md5_checked(full_path):
             continue
         
-        file_name = os.path.basename(full_path)
+        filename = os.path.basename(full_path)
+        md5 = get_md5(full_path)
 
-        with open(full_path, "rb") as file:
-            md5 = hashlib.md5(file.read()).hexdigest()
-
-            if is_existing(full_path, md5):
-                continue
-                
-            if not check_danbooru(full_path, file_name, md5):
-                output(f"No match found for {file_name}")
-                add_image(full_path, md5, imagerepo.image_scan_status.md5_only_scan)
+        if is_existing(full_path, md5):
+            continue
+            
+        if not check_danbooru(full_path, filename, md5):
+            output(f"No match found for {filename}")
+            add_image(full_path, md5, imagerepo.image_scan_status.md5_only_scan)
 
 
 def get_image_size(full_path):
@@ -262,8 +284,8 @@ def full_scan(directory:str, recursive:bool, high_threshold:int, low_threshold:i
             if not valid_file(full_path):
                 continue
 
-            with open(full_path, "rb") as file:
-                md5 = hashlib.md5(file.read()).hexdigest()
+            filename = os.path.basename(full_path)
+            md5 = get_md5(full_path)
 
             # Skip if file already in DB
             if is_existing(full_path, md5):
@@ -272,7 +294,7 @@ def full_scan(directory:str, recursive:bool, high_threshold:int, low_threshold:i
             # Saucenao has a 100 daily search limit, but Dan doesn't. We can save searches by checking the image's md5 on Dan.
             status = dan_status.Not_Found
             if not md5_checked(full_path):
-                status = check_danbooru(full_path, md5)
+                status = check_danbooru(full_path, filename, md5)
             
             if status == dan_status.Banned:
                 continue
