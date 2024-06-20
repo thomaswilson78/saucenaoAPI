@@ -327,3 +327,19 @@ def full_scan(directory:str, recursive:bool, high_threshold:int, low_threshold:i
     # Once finished, set the crontab job to the ending time, this way there will be ample time to refresh all usages.
     if schedule:
         updateschedule.update_crontab_job(directory)
+
+
+def skip_scan(directory:str, recursive:bool):
+    img_queries = []
+    imgs = set(img.full_path for img in imagerepo.get_images([ Parameter("full_path", directory+'%', search_condition=Parameter.Condition.LIKE) ]))
+
+    for full_path in get_files(directory, recursive):
+        if full_path in imgs:
+            continue
+
+        md5 = get_md5(full_path)
+        file_name, ext = os.path.splitext(os.path.split(full_path)[1])
+        img_queries.append(f"INSERT INTO Images (full_path, file_name, ext, md5, status) VALUES ('{full_path}', '{file_name}', '{ext}', '{md5}', {1});")
+
+    if any(img_queries):
+        imagerepo.mass_insert_image("".join(img_queries))

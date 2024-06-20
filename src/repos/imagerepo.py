@@ -46,6 +46,10 @@ def insert_image(full_path:str, md5:str, status:image_scan_status = image_scan_s
     return imgdatabase.db_handler.execute_change(img_qry, img_params)
 
 
+def mass_insert_image(query:str|list[str], params = ()):
+    imgdatabase.db_handler.execute_mass_transaction(query, params)
+
+
 def check_existing_file(full_path, md5):
     """Check the MD5 value to ensure the file hasn't been moved, renamed, or is a duplicate."""
     response = {"status": file_status.OK, "msg": None} 

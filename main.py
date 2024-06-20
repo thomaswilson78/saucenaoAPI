@@ -77,8 +77,23 @@ def scan(directory:str, recursive:bool, high_threshold:int, low_threshold:int, s
     print("Scan Complete.")
 
 
+@click.command()
+@click.argument("directory", type=click.Path(exists=True, file_okay=False, dir_okay=True))
+@click.option("-r", "--recursive", 
+              is_flag=True, show_default=True, default=False, 
+              help="Pull images from all sub-directories within specified directory.")
+def skip_scan(directory:str, recursive:bool):
+    """
+    Skips scan for files that won't be found or if DB corrupted and files no longer working properly.
+    """
+    saucenaoscan.skip_scan(directory, recursive)
+        
+    print("Scan Complete.")
+
+
 commands.add_command(check_results)
 commands.add_command(scan)
+commands.add_command(skip_scan)
 
 
 if __name__ == "__main__":

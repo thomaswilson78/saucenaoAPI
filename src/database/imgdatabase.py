@@ -157,7 +157,8 @@ class Parameter():
         GRTOREQUAL = 2,
         LESS = 3,
         LESOREQUAL = 4,
-        IN = 5
+        IN = 5,
+        LIKE = 6
 
     def __init__(self, col_name:str, value, search_condition:Condition = Condition.EQUAL, search_type:Type = Type.AND):
         """An object to simplify writing conditional clauses to query strings.
@@ -188,6 +189,8 @@ class Parameter():
                 return " <= "
             case self.Condition.IN:
                 return " IN "
+            case self.Condition.LIKE:
+                return " LIKE "
 
 
     def __get_type(self):
