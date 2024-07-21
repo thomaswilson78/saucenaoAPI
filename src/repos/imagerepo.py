@@ -13,8 +13,8 @@ class image_scan_status(IntEnum):
 
 
 class file_status(IntEnum):
-    OK = 0,
-    Duplicate = 1,
+    OK = 0
+    Duplicate = 1
     Changed = 2
     
     
@@ -65,7 +65,6 @@ def check_existing_file(full_path, md5):
                 response["msg"] = f"{full_path} is a duplicate file. File with same MD5 already exists: {image.full_path}" 
             # Otherwise the file has been moved or renamed, update the database to reflect.
             else:
-                path = os.path.dirname(full_path)
                 response["status"] = file_status.Changed
                 response["msg"] = f"""File has been moved/renamed.\nOriginal Path: {image.full_path}\n     New Path: {full_path}"""
                 update_image(

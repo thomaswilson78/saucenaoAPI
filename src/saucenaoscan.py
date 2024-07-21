@@ -60,7 +60,10 @@ def valid_file(full_path:str):
        os.path.isfile(full_path) and
        os.path.splitext(full_path)[1] in saucenao.API.get_allowed_extensions() and
        not any(bl in full_path for bl in blacklisted_terms) and
-       not any(imagerepo.get_images([Parameter("full_path", full_path), Parameter("status", 1)]))
+       not any(imagerepo.get_images([Parameter("full_path", full_path), Parameter("status", [
+           int(imagerepo.image_scan_status.full_scan),
+           int(imagerepo.image_scan_status.banned_artist)
+        ])]))
     )
 
 
