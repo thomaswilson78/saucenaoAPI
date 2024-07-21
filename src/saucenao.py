@@ -80,7 +80,7 @@ class API(object):
         ImageFile.LOAD_TRUNCATED_IMAGES = True
         with Image.open(fname) as image:
             image = image.convert('RGB')
-            image.thumbnail(API.__THUMBSIZE, resample=Image.ANTIALIAS)
+            image.thumbnail(API.__THUMBSIZE, resample=Image.Resampling.LANCZOS)
             with io.BytesIO() as imageData:
                 image.save(imageData,format='PNG')
                 file = {'file': ("image.png", imageData.getvalue())}
